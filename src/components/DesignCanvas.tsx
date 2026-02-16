@@ -145,8 +145,8 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [])
 
   return (
-    <div className="flex items-center justify-center p-8 bg-gray-200 min-h-[600px] overflow-auto">
-      <div className="shadow-2xl bg-white">
+    <div className="w-full h-full flex items-center justify-center p-12 bg-slate-200 overflow-auto">
+      <div className="shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] bg-white border border-slate-300">
         <canvas ref={canvasRef} />
       </div>
     </div>

@@ -5,8 +5,11 @@ import path from 'node:path'
 import * as XLSX from 'xlsx'
 
 export function setupIpc() {
+  console.log('[IPC] Registering handlers...')
+
   // Profiles
   ipcMain.handle('get-profiles', () => {
+    console.log('[IPC] get-profiles called')
     return db.prepare('SELECT * FROM printer_profiles').all()
   })
 
@@ -53,6 +56,7 @@ export function setupIpc() {
 
   // Specialized Import
   ipcMain.handle('import-excel', async () => {
+    console.log('[IPC] import-excel called')
     const result = await dialog.showOpenDialog({
       filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }]
     })
@@ -64,6 +68,10 @@ export function setupIpc() {
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const data = XLSX.utils.sheet_to_json(sheet)
 
+    if (data.length > 0) {
+      console.log('[IPC] First row of imported data:', data[0])
+    }
+
     const batchName = `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
     const batchResult = db.prepare('INSERT INTO batches (name) VALUES (?)').run(batchName)
     const batchId = batchResult.lastInsertRowid
@@ -71,6 +79,8 @@ export function setupIpc() {
     const insertStudent = db.prepare(`
       INSERT INTO students (batchId, admNo, data) VALUES (?, ?, ?)
     `)
+
+    console.log(`[IPC] Importing ${data.length} students into batch ${batchId}...`)
 
     db.transaction(() => {
       for (const row of data as any[]) {

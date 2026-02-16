@@ -3,6 +3,7 @@ import path from 'node:path'
 import { app } from 'electron'
 
 const dbPath = path.join(app.getPath('userData'), 'whizpoint.db')
+console.log(`[DB] Opening database at: ${dbPath}`)
 const db = new Database(dbPath)
 
 // Initialize schema

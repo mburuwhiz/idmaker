@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { FileUp, Play, Table, Camera } from 'lucide-react'
 
 interface Batch {
@@ -20,18 +21,30 @@ const Batches: React.FC = () => {
   }
 
   const handleImport = async () => {
-    const result = await window.ipcRenderer.invoke('import-excel')
-    if (result) {
-      alert(`Imported ${result.count} students!`)
-      loadBatches()
+    const loadToast = toast.loading('Importing Excel...')
+    try {
+      const result = await window.ipcRenderer.invoke('import-excel')
+      if (result) {
+        toast.success(`Imported ${result.count} students!`, { id: loadToast })
+        loadBatches()
+      } else {
+        toast.dismiss(loadToast)
+      }
+    } catch (e) {
+      toast.error('Import failed', { id: loadToast })
     }
   }
 
   const handleMatchPhotos = async (batchId: number) => {
     const dirResult = await window.ipcRenderer.invoke('open-directory')
     if (!dirResult.canceled && dirResult.filePaths.length > 0) {
-      const count = await window.ipcRenderer.invoke('match-photos', batchId, dirResult.filePaths[0])
-      alert(`Matched ${count} photos!`)
+      const loadToast = toast.loading('Matching photos...')
+      try {
+        const count = await window.ipcRenderer.invoke('match-photos', batchId, dirResult.filePaths[0])
+        toast.success(`Matched ${count} photos!`, { id: loadToast })
+      } catch (e) {
+        toast.error('Photo matching failed', { id: loadToast })
+      }
     }
   }
 

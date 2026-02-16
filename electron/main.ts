@@ -1,9 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { setupIpc } from './ipc.js'
 
-// @ts-ignore
-const __dirname = import.meta.dirname
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
 //
@@ -66,7 +66,15 @@ app.on('activate', () => {
   }
 })
 
+console.log('[Main] Starting WhizPoint ID Main Process...')
+
 app.whenReady().then(() => {
-  setupIpc()
-  createWindow()
+  console.log('[Main] App ready, setting up IPC and Window...')
+  try {
+    setupIpc()
+    createWindow()
+    console.log('[Main] Initialization complete.')
+  } catch (err) {
+    console.error('[Main] Failed to initialize:', err)
+  }
 })

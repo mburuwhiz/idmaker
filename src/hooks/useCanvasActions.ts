@@ -8,7 +8,7 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
       left: 100,
       top: 100,
       fontFamily: 'Arial',
-      fontSize: 24,
+      fontSize: 40,
       fill: '#000000',
     })
     canvas.add(textObj)
@@ -21,7 +21,7 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
       left: 100,
       top: 150,
       fontFamily: 'Arial',
-      fontSize: 24,
+      fontSize: 40,
       fill: '#ff0000',
       fontWeight: 'bold',
     })

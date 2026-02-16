@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import { useRef } from 'react'
+import toast from 'react-hot-toast'
 import DesignCanvas from '../components/DesignCanvas'
 import { useCanvasActions } from '../hooks/useCanvasActions'
-import { Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2, MoveUp, MoveDown, UserSquare } from 'lucide-react'
+import { Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2, MoveUp, MoveDown, UserSquare, Bold, Italic } from 'lucide-react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM } from '../utils/units'
 
 const FONTS = [
-  'Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia',
-  'Trebuchet MS', 'Impact', 'Comic Sans MS', 'Tahoma', 'Geneva',
-  'Lucida Sans Unicode', 'Lucida Grande', 'Helvetica'
+  'Arial', 'Arial Black', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact',
+  'Times New Roman', 'Didot', 'Georgia', 'American Typewriter',
+  'Courier', 'Courier New', 'Monaco', 'Comic Sans MS',
+  'Helvetica', 'Segoe UI', 'Roboto', 'Open Sans', 'Lato', 'Montserrat'
 ]
 
 const Design: React.FC = () => {
@@ -45,32 +47,46 @@ const Design: React.FC = () => {
 
   const handleSave = async () => {
     if (!canvas) {
-      console.error('Canvas not initialized');
+      toast.error('Canvas not initialized');
       return;
     }
+    const loadToast = toast.loading('Saving layout...');
     try {
-      console.log('Saving layout:', layoutName);
-      const content = JSON.stringify(canvas.toJSON(['isPlaceholder']));
-      const result = await window.ipcRenderer.invoke('save-layout', layoutName, content);
-      console.log('Save result:', result);
-      alert('Layout saved successfully!');
+      const content = JSON.stringify(canvas.toJSON([
+        'isPlaceholder',
+        'isPhotoPlaceholder',
+        'isPhotoFrame',
+        'fontWeight',
+        'fontStyle',
+        'fontFamily',
+        'rx', 'ry', 'selectable'
+      ]));
+      await window.ipcRenderer.invoke('save-layout', layoutName, content);
+      toast.success('Layout saved successfully!', { id: loadToast });
     } catch (e) {
       console.error('Save failed:', e);
-      alert('Failed to save layout. Check console for details.');
+      toast.error('Failed to save layout', { id: loadToast });
     }
   }
 
-  const updateSelected = (prop: string, value: any) => {
+  const updateSelected = (prop: string | Record<string, any>, value?: any) => {
     if (!canvas) return
     const activeObject = canvas.getActiveObject()
     if (!activeObject) return
 
-    activeObject.set(prop, value)
+    if (typeof prop === 'string') {
+      activeObject.set(prop as any, value)
+    } else {
+      activeObject.set(prop)
+    }
     canvas.requestRenderAll()
 
     // Refresh the selectedObject state to trigger re-render of properties panel
     setSelectedObject({
-      ...activeObject.toObject(['isPlaceholder']),
+      ...activeObject.toObject([
+        'isPlaceholder', 'isPhotoPlaceholder', 'isPhotoFrame',
+        'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry'
+      ]),
       _actual: activeObject
     })
   }
@@ -180,13 +196,27 @@ const Design: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Font Family</label>
+                  <div className="flex flex-col gap-2">
                     <select
-                      value={selectedObject.fontFamily}
-                      onChange={(e) => updateSelected('fontFamily', e.target.value)}
+                      value={FONTS.includes(selectedObject.fontFamily) ? selectedObject.fontFamily : 'Custom'}
+                      onChange={(e) => {
+                        if (e.target.value !== 'Custom') updateSelected('fontFamily', e.target.value)
+                      }}
                       className="w-full border rounded p-2 text-sm"
                     >
                       {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                      <option value="Custom">Custom / System Font...</option>
                     </select>
+                    {(!FONTS.includes(selectedObject.fontFamily) || selectedObject.fontFamily === 'Custom') && (
+                      <input
+                        type="text"
+                        placeholder="Type system font name..."
+                        className="w-full border rounded p-2 text-sm"
+                        onBlur={(e) => updateSelected('fontFamily', e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && updateSelected('fontFamily', (e.target as any).value)}
+                      />
+                    )}
+                  </div>
                   </div>
                 </>
               )}
@@ -196,6 +226,8 @@ const Design: React.FC = () => {
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Font Size</label>
                   <input
                     type="number"
+                    min="1"
+                    max="500"
                     value={Math.round(selectedObject.fontSize || 0)}
                     onChange={(e) => updateSelected('fontSize', Number(e.target.value))}
                     className="w-full border rounded p-2 text-sm"
@@ -205,20 +237,53 @@ const Design: React.FC = () => {
                   <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Color</label>
                   <input
                     type="color"
-                    value={selectedObject.fill}
-                    onChange={(e) => updateSelected('fill', e.target.value)}
+                    value={
+                      selectedObject.type === 'line'
+                        ? (selectedObject.stroke || '#000000')
+                        : (selectedObject.fill || '#000000')
+                    }
+                    onChange={(e) => {
+                      const color = e.target.value
+                      if (selectedObject.type === 'line') {
+                        updateSelected('stroke', color)
+                      } else if (selectedObject.type === 'rect') {
+                        updateSelected({ fill: color, stroke: color })
+                      } else {
+                        updateSelected('fill', color)
+                      }
+                    }}
                     className="w-full h-9 border rounded cursor-pointer"
                   />
                 </div>
               </div>
 
+              {selectedObject.text !== undefined && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => updateSelected('fontWeight', selectedObject.fontWeight === 'bold' ? 'normal' : 'bold')}
+                    className={`flex-1 flex items-center justify-center p-2 border rounded ${selectedObject.fontWeight === 'bold' ? 'bg-blue-100 border-blue-500 text-blue-600' : 'hover:bg-gray-50'}`}
+                  >
+                    <Bold size={16} />
+                  </button>
+                  <button
+                    onClick={() => updateSelected('fontStyle', selectedObject.fontStyle === 'italic' ? 'normal' : 'italic')}
+                    className={`flex-1 flex items-center justify-center p-2 border rounded ${selectedObject.fontStyle === 'italic' ? 'bg-blue-100 border-blue-500 text-blue-600' : 'hover:bg-gray-50'}`}
+                  >
+                    <Italic size={16} />
+                  </button>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Opacity ({Math.round(selectedObject.opacity * 100)}%)</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Opacity ({Math.round((selectedObject.opacity ?? 1) * 100)}%)</label>
                 <input
-                  type="range" min="0" max="1" step="0.01"
-                  value={selectedObject.opacity}
-                  onChange={(e) => updateSelected('opacity', Number(e.target.value))}
-                  className="w-full"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={selectedObject.opacity ?? 1}
+                  onChange={(e) => updateSelected('opacity', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
               </div>
 
