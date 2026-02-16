@@ -1,5 +1,7 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
+console.log('[Preload] Execution started...');
+
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {

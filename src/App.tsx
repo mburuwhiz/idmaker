@@ -63,6 +63,13 @@ function App() {
   const [activeBatchId, setActiveBatchId] = useState<number | null>(null)
 
   const checkConnection = async () => {
+    if (!window.ipcRenderer) {
+      setError("IPC Bridge not found. This application must be run inside Electron with its production shell.");
+      // Retry automatically in case it's a race condition
+      setTimeout(checkConnection, 1000)
+      return;
+    }
+
     try {
       await window.ipcRenderer.invoke('get-profiles')
       setLoading(false)
