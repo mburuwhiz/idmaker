@@ -5,7 +5,11 @@ import { useCanvasActions } from '../hooks/useCanvasActions'
 import { Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2, MoveUp, MoveDown, UserSquare } from 'lucide-react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM } from '../utils/units'
 
-const FONTS = ['Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Trebuchet MS', 'Impact']
+const FONTS = [
+  'Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia',
+  'Trebuchet MS', 'Impact', 'Comic Sans MS', 'Tahoma', 'Geneva',
+  'Lucida Sans Unicode', 'Lucida Grande', 'Helvetica'
+]
 
 const Design: React.FC = () => {
   const [canvas, setCanvas] = useState<any>(null)
@@ -20,7 +24,12 @@ const Design: React.FC = () => {
     if (!canvas) return
 
     const handleSelection = () => {
-      setSelectedObject(canvas.getActiveObject())
+      const obj = canvas.getActiveObject()
+      if (obj) {
+        setSelectedObject({ ...obj.toObject(['isPlaceholder']), _actual: obj })
+      } else {
+        setSelectedObject(null)
+      }
     }
 
     canvas.on('selection:created', handleSelection)
@@ -35,17 +44,35 @@ const Design: React.FC = () => {
   }, [canvas])
 
   const handleSave = async () => {
-    if (!canvas) return
-    const content = JSON.stringify(canvas.toJSON(['isPlaceholder']))
-    await window.ipcRenderer.invoke('save-layout', layoutName, content)
-    alert('Layout saved!')
+    if (!canvas) {
+      console.error('Canvas not initialized');
+      return;
+    }
+    try {
+      console.log('Saving layout:', layoutName);
+      const content = JSON.stringify(canvas.toJSON(['isPlaceholder']));
+      const result = await window.ipcRenderer.invoke('save-layout', layoutName, content);
+      console.log('Save result:', result);
+      alert('Layout saved successfully!');
+    } catch (e) {
+      console.error('Save failed:', e);
+      alert('Failed to save layout. Check console for details.');
+    }
   }
 
   const updateSelected = (prop: string, value: any) => {
-    if (!selectedObject) return
-    selectedObject.set(prop, value)
+    if (!canvas) return
+    const activeObject = canvas.getActiveObject()
+    if (!activeObject) return
+
+    activeObject.set(prop, value)
     canvas.requestRenderAll()
-    setSelectedObject({ ...selectedObject.toObject(['isPlaceholder']), _actual: selectedObject })
+
+    // Refresh the selectedObject state to trigger re-render of properties panel
+    setSelectedObject({
+      ...activeObject.toObject(['isPlaceholder']),
+      _actual: activeObject
+    })
   }
 
   return (
@@ -100,8 +127,9 @@ const Design: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="text-xs font-bold text-slate-400 border border-slate-200 px-3 py-1 rounded-full uppercase tracking-tighter">
-            {CR80_WIDTH_MM} x {CR80_HEIGHT_MM} mm
+          <div className="bg-slate-900 text-white text-[10px] font-black px-3 py-1.5 rounded flex flex-col items-center leading-none border-b-2 border-blue-500 shadow-sm">
+            <span className="mb-0.5 text-blue-400">CR80 STANDARD</span>
+            <span>{CR80_WIDTH_MM} x {CR80_HEIGHT_MM} MM</span>
           </div>
           <div className="flex items-center gap-4 mr-4">
             <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">

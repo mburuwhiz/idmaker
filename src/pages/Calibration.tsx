@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM, SLOT1_X_MM, SLOT1_Y_MM, SLOT2_Y_MM } from '../utils/units'
+import { printTestSheet } from '../utils/printService'
 
 interface Profile {
   id?: number
@@ -13,6 +14,7 @@ interface Profile {
 }
 
 const Calibration: React.FC = () => {
+  const [, setProfiles] = useState<Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null)
   const [wizardStep, setWizardStep] = useState(1)
 
@@ -21,9 +23,19 @@ const Calibration: React.FC = () => {
   }, [])
 
   const loadProfiles = async () => {
-    const data = await window.ipcRenderer.invoke('get-profiles')
-    if (data.length > 0) {
-      setSelectedProfile(data.find((p: Profile) => p.isDefault) || data[0])
+    try {
+      const data = await window.ipcRenderer.invoke('get-profiles')
+      if (data && data.length > 0) {
+        setProfiles(data) // Need to keep track of all profiles too
+        setSelectedProfile(data.find((p: Profile) => p.isDefault) || data[0])
+      } else {
+        // Handle case where no profiles exist
+        const defaultProfile = { name: 'New Profile', offsetX: 0, offsetY: 0, slot2YOffset: 0, scaleX: 1, scaleY: 1, isDefault: 1 }
+        setSelectedProfile(defaultProfile)
+      }
+    } catch (e) {
+      console.error('Failed to load profiles:', e)
+      alert('Error connecting to background process')
     }
   }
 
@@ -126,7 +138,7 @@ const Calibration: React.FC = () => {
               </button>
 
               <button
-                onClick={() => alert('Printing Test Sheet... (Simulated)')}
+                onClick={() => selectedProfile && printTestSheet(selectedProfile)}
                 className="w-full border-2 border-slate-200 text-slate-600 font-bold py-2 rounded-lg hover:bg-slate-50 transition mt-2"
               >
                 Print Test Sheet

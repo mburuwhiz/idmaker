@@ -34,9 +34,16 @@ function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Simulate initial load
-    const timer = setTimeout(() => setLoading(false), 1500)
-    return () => clearTimeout(timer)
+    const checkConnection = async () => {
+      try {
+        await window.ipcRenderer.invoke('get-profiles')
+        setLoading(false)
+      } catch (e) {
+        console.warn('Waiting for backend...', e)
+        setTimeout(checkConnection, 500)
+      }
+    }
+    checkConnection()
   }, [])
 
   const renderContent = () => {

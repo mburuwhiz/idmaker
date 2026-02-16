@@ -1,9 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { setupIpc } from './ipc.js'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// @ts-ignore
+const __dirname = import.meta.dirname
 
 // The built directory structure
 //

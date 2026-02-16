@@ -54,12 +54,19 @@ const Print: React.FC = () => {
 
     const student1 = students[currentIndex * 2]
     const student2 = students[currentIndex * 2 + 1]
+
+    const photo1 = student1.photoPath ? await window.ipcRenderer.invoke('read-photo', student1.photoPath) : null
+    const photo2 = student2?.photoPath ? await window.ipcRenderer.invoke('read-photo', student2.photoPath) : null
+
+    const p1Data = photo1 ? `data:image/jpeg;base64,${photo1}` : undefined
+    const p2Data = photo2 ? `data:image/jpeg;base64,${photo2}` : undefined
+
     const profile = profiles.find(p => p.id === selectedProfileId)
     const layout = layouts.find(l => l.id === selectedLayoutId)
 
     if (!student1 || !profile || !layout) return
 
-    const sheet = await renderA4Sheet(student1.data, student2?.data, layout.content, profile)
+    const sheet = await renderA4Sheet(student1.data, student2?.data, layout.content, profile, p1Data, p2Data)
     setPreviewUrl(sheet.toDataURL())
   }
 
@@ -98,6 +105,12 @@ const Print: React.FC = () => {
         const s1 = students[i * 2]
         const s2 = students[i * 2 + 1]
 
+        const photo1 = s1.photoPath ? await window.ipcRenderer.invoke('read-photo', s1.photoPath) : null
+        const photo2 = s2?.photoPath ? await window.ipcRenderer.invoke('read-photo', s2.photoPath) : null
+
+        const p1Data = photo1 ? `data:image/jpeg;base64,${photo1}` : undefined
+        const p2Data = photo2 ? `data:image/jpeg;base64,${photo2}` : undefined
+
         // Track failures (e.g. missing photo)
         if (!s1.photoPath) {
           failedStudents.push({ ...s1, exceptionReason: 'Missing Photo' })
@@ -106,7 +119,7 @@ const Print: React.FC = () => {
           failedStudents.push({ ...s2, exceptionReason: 'Missing Photo' })
         }
 
-        const sheet = await renderA4Sheet(s1.data, s2?.data, layout.content, profile)
+        const sheet = await renderA4Sheet(s1.data, s2?.data, layout.content, profile, p1Data, p2Data)
         sheets.push(sheet)
       }
 
