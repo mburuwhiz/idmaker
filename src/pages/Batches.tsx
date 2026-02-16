@@ -8,7 +8,12 @@ interface Batch {
   createdAt: string
 }
 
-const Batches: React.FC = () => {
+interface BatchesProps {
+  onViewData: (batchId: number) => void
+  onPrint: (batchId: number) => void
+}
+
+const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint }) => {
   const [batches, setBatches] = useState<Batch[]>([])
 
   useEffect(() => {
@@ -74,10 +79,16 @@ const Batches: React.FC = () => {
               >
                 <Camera size={18} /> Match Photos
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 transition">
+              <button
+                onClick={() => onViewData(batch.id)}
+                className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
+              >
                  <Table size={18} /> View Data
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+              <button
+                onClick={() => onPrint(batch.id)}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+              >
                 <Play size={18} /> Start Printing
               </button>
             </div>

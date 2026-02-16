@@ -59,6 +59,7 @@ const Settings = () => {
 function App() {
   const [activeTab, setActiveTab] = useState('design')
   const [loading, setLoading] = useState(true)
+  const [activeBatchId, setActiveBatchId] = useState<number | null>(null)
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -76,9 +77,14 @@ function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'design': return <Design />
-      case 'data': return <StudentData />
-      case 'batches': return <Batches />
-      case 'print': return <Print />
+      case 'data': return <StudentData initialBatchId={activeBatchId} />
+      case 'batches': return (
+        <Batches
+          onViewData={(id) => { setActiveBatchId(id); setActiveTab('data'); }}
+          onPrint={(id) => { setActiveBatchId(id); setActiveTab('print'); }}
+        />
+      )
+      case 'print': return <Print initialBatchId={activeBatchId} />
       case 'calibration': return <Calibration />
       case 'settings': return <Settings />
       default: return <Design />

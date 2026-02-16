@@ -3,12 +3,16 @@ import { Printer, ChevronLeft, ChevronRight, FileText, Settings } from 'lucide-r
 import { renderA4Sheet, exportToPdf } from '../utils/printService'
 import { generateExceptionReport } from '../utils/dataService'
 
-const Print: React.FC = () => {
+interface PrintProps {
+  initialBatchId?: number | null
+}
+
+const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
   const [batches, setBatches] = useState<any[]>([])
   const [profiles, setProfiles] = useState<any[]>([])
   const [layouts, setLayouts] = useState<any[]>([])
 
-  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null)
+  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(initialBatchId)
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null)
   const [selectedLayoutId, setSelectedLayoutId] = useState<number | null>(null)
 

@@ -9,7 +9,11 @@ interface Student {
   printStatus: string
 }
 
-const StudentData: React.FC = () => {
+interface StudentDataProps {
+  initialBatchId?: number | null
+}
+
+const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
   const [students, setStudents] = useState<Student[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -20,7 +24,7 @@ const StudentData: React.FC = () => {
   }, [])
 
   const loadStudents = async () => {
-    const data = await window.ipcRenderer.invoke('get-students', null) // Fetching all for now
+    const data = await window.ipcRenderer.invoke('get-students', initialBatchId)
     setStudents(data.map((s: any) => ({ ...s, data: JSON.parse(s.data) })))
   }
 
