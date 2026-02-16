@@ -31,6 +31,31 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     canvas.setActiveObject(textObj)
   }, [canvas])
 
+  const addRect = useCallback(() => {
+    if (!canvas) return
+    const rect = new fabric.Rect({
+      left: 100,
+      top: 100,
+      width: 100,
+      height: 100,
+      fill: '#cccccc',
+      stroke: '#000000',
+      strokeWidth: 1,
+    })
+    canvas.add(rect)
+    canvas.setActiveObject(rect)
+  }, [canvas])
+
+  const addLine = useCallback(() => {
+    if (!canvas) return
+    const line = new fabric.Line([50, 50, 200, 50], {
+      stroke: '#000000',
+      strokeWidth: 2,
+    })
+    canvas.add(line)
+    canvas.setActiveObject(line)
+  }, [canvas])
+
   const addImage = useCallback((url: string) => {
     if (!canvas) return
     fabric.Image.fromURL(url).then((img) => {
@@ -51,6 +76,8 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
   return {
     addText,
     addPlaceholder,
+    addRect,
+    addLine,
     addImage,
     deleteSelected,
   }

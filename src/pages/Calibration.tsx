@@ -14,6 +14,7 @@ interface Profile {
 
 const Calibration: React.FC = () => {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null)
+  const [wizardStep, setWizardStep] = useState(1)
 
   useEffect(() => {
     loadProfiles()
@@ -48,107 +49,122 @@ const Calibration: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border">
-          <h2 className="text-xl font-semibold mb-4">Parameters (mm)</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Profile Name</label>
-              <input
-                type="text"
-                value={selectedProfile.name}
-                onChange={(e) => updateProfile('name', e.target.value)}
-                className="mt-1 block w-full border rounded-md px-3 py-2"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Offset X</label>
-                <input
-                  type="number" step="0.1"
-                  value={selectedProfile.offsetX}
-                  onChange={(e) => updateProfile('offsetX', parseFloat(e.target.value))}
-                  className="mt-1 block w-full border rounded-md px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Offset Y</label>
-                <input
-                  type="number" step="0.1"
-                  value={selectedProfile.offsetY}
-                  onChange={(e) => updateProfile('offsetY', parseFloat(e.target.value))}
-                  className="mt-1 block w-full border rounded-md px-3 py-2"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Slot 2 Y Offset Correction</label>
-              <input
-                type="number" step="0.1"
-                value={selectedProfile.slot2YOffset}
-                onChange={(e) => updateProfile('slot2YOffset', parseFloat(e.target.value))}
-                className="mt-1 block w-full border rounded-md px-3 py-2"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Scale X</label>
-                <input
-                  type="number" step="0.001"
-                  value={selectedProfile.scaleX}
-                  onChange={(e) => updateProfile('scaleX', parseFloat(e.target.value))}
-                  className="mt-1 block w-full border rounded-md px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Scale Y</label>
-                <input
-                  type="number" step="0.001"
-                  value={selectedProfile.scaleY}
-                  onChange={(e) => updateProfile('scaleY', parseFloat(e.target.value))}
-                  className="mt-1 block w-full border rounded-md px-3 py-2"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleSave}
-              className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              Save Profile
-            </button>
+          <div className="flex gap-4 mb-6 border-b">
+             <button onClick={() => setWizardStep(1)} className={`pb-2 font-bold text-sm uppercase tracking-wider ${wizardStep === 1 ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-400'}`}>1. Parameters</button>
+             <button onClick={() => setWizardStep(2)} className={`pb-2 font-bold text-sm uppercase tracking-wider ${wizardStep === 2 ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-400'}`}>2. Wizard</button>
           </div>
 
-          <div className="mt-8 border-t pt-6">
-            <h3 className="text-lg font-medium mb-2 text-blue-800">Calibration Wizard</h3>
-            <p className="text-sm text-gray-600 mb-4">Enter measured values from a 100mm test print to auto-calculate scale.</p>
-            <div className="grid grid-cols-2 gap-4">
+          {wizardStep === 1 ? (
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase">Actual Width (mm)</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Profile Name</label>
                 <input
-                  type="number" step="0.1" placeholder="Expected 100"
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value)
-                    if (val > 0) updateProfile('scaleX', 100 / val)
-                  }}
-                  className="mt-1 block w-full border-gray-300 rounded-md text-sm"
+                  type="text"
+                  value={selectedProfile.name}
+                  onChange={(e) => updateProfile('name', e.target.value)}
+                  className="w-full border rounded-md px-3 py-2 text-sm"
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Offset X (mm)</label>
+                  <input
+                    type="number" step="0.1"
+                    value={selectedProfile.offsetX}
+                    onChange={(e) => updateProfile('offsetX', parseFloat(e.target.value))}
+                    className="w-full border rounded-md px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Offset Y (mm)</label>
+                  <input
+                    type="number" step="0.1"
+                    value={selectedProfile.offsetY}
+                    onChange={(e) => updateProfile('offsetY', parseFloat(e.target.value))}
+                    className="w-full border rounded-md px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase">Actual Height (mm)</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Slot 2 Y Correction (mm)</label>
                 <input
-                  type="number" step="0.1" placeholder="Expected 100"
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value)
-                    if (val > 0) updateProfile('scaleY', 100 / val)
-                  }}
-                  className="mt-1 block w-full border-gray-300 rounded-md text-sm"
+                  type="number" step="0.1"
+                  value={selectedProfile.slot2YOffset}
+                  onChange={(e) => updateProfile('slot2YOffset', parseFloat(e.target.value))}
+                  className="w-full border rounded-md px-3 py-2 text-sm"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Scale X</label>
+                  <input
+                    type="number" step="0.001"
+                    value={selectedProfile.scaleX}
+                    onChange={(e) => updateProfile('scaleX', parseFloat(e.target.value))}
+                    className="w-full border rounded-md px-3 py-2 text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Scale Y</label>
+                  <input
+                    type="number" step="0.001"
+                    value={selectedProfile.scaleY}
+                    onChange={(e) => updateProfile('scaleY', parseFloat(e.target.value))}
+                    className="w-full border rounded-md px-3 py-2 text-sm font-mono"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleSave}
+                className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition mt-4 shadow-lg shadow-blue-200"
+              >
+                Save Profile
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="p-4 bg-amber-50 rounded border border-amber-100">
+                <h4 className="font-bold text-amber-800 text-sm mb-1">Step 1: Print Test</h4>
+                <p className="text-xs text-amber-700">Print a 100mm x 100mm reference square from the design screen.</p>
+              </div>
+
+              <div className="p-4 bg-blue-50 rounded border border-blue-100">
+                <h4 className="font-bold text-blue-800 text-sm mb-2">Step 2: Measure & Enter</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Measured Width (mm)</label>
+                    <input
+                      type="number" step="0.1" placeholder="e.g. 99.2"
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value)
+                        if (val > 0) updateProfile('scaleX', 100 / val)
+                      }}
+                      className="w-full border rounded p-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Measured Height (mm)</label>
+                    <input
+                      type="number" step="0.1" placeholder="e.g. 100.5"
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value)
+                        if (val > 0) updateProfile('scaleY', 100 / val)
+                      }}
+                      className="w-full border rounded p-2 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center p-4">
+                 <p className="text-xs text-gray-500">Scale factors will update automatically as you type. Switch back to Parameters to save.</p>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="bg-gray-50 p-6 rounded-xl border flex flex-col items-center justify-center">

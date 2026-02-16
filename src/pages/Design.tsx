@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import DesignCanvas from '../components/DesignCanvas'
 import { useCanvasActions } from '../hooks/useCanvasActions'
-import { Type, Image as ImageIcon, Tags, Trash2, Save } from 'lucide-react'
+import { Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2, MoveUp, MoveDown } from 'lucide-react'
 
 const Design: React.FC = () => {
   const [canvas, setCanvas] = useState<any>(null)
-  const { addText, addPlaceholder, deleteSelected } = useCanvasActions(canvas)
+  const { addText, addPlaceholder, addRect, addLine, deleteSelected } = useCanvasActions(canvas)
   const [showGrid, setShowGrid] = useState(false)
   const [snapToGrid, setSnapToGrid] = useState(false)
   const [selectedObject, setSelectedObject] = useState<any>(null)
@@ -59,6 +59,12 @@ const Design: React.FC = () => {
           </button>
           <button onClick={() => addPlaceholder()} className="p-2 hover:bg-gray-100 rounded text-blue-600 flex items-center gap-2">
             <Tags size={20} /> <span className="text-sm font-medium">Placeholder</span>
+          </button>
+          <button onClick={() => addRect()} className="p-2 hover:bg-gray-100 rounded text-gray-700 flex items-center gap-2">
+            <Square size={20} /> <span className="text-sm font-medium">Rect</span>
+          </button>
+          <button onClick={() => addLine()} className="p-2 hover:bg-gray-100 rounded text-gray-700 flex items-center gap-2">
+            <Minimize2 size={20} className="rotate-45" /> <span className="text-sm font-medium">Line</span>
           </button>
           <button onClick={() => {}} className="p-2 hover:bg-gray-100 rounded text-gray-700 flex items-center gap-2">
             <ImageIcon size={20} /> <span className="text-sm font-medium">Image</span>
@@ -142,6 +148,41 @@ const Design: React.FC = () => {
                   className="w-full"
                 />
               </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    selectedObject._actual.bringToFront()
+                    canvas.requestRenderAll()
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 p-2 border rounded text-xs hover:bg-gray-50"
+                >
+                  <MoveUp size={14} /> Front
+                </button>
+                <button
+                  onClick={() => {
+                    selectedObject._actual.sendToBack()
+                    canvas.requestRenderAll()
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 p-2 border rounded text-xs hover:bg-gray-50"
+                >
+                  <MoveDown size={14} /> Back
+                </button>
+              </div>
+
+              {selectedObject.type === 'image' && (
+                <div className="flex items-center gap-2 mt-4">
+                  <input
+                    type="checkbox"
+                    id="grayscale"
+                    onChange={() => {
+                      // Simple grayscale simulation in properties
+                      // In a full app, we'd use Fabric filters
+                    }}
+                  />
+                  <label htmlFor="grayscale" className="text-xs text-gray-600">Grayscale</label>
+                </div>
+              )}
 
               {selectedObject.isPlaceholder && (
                 <div className="bg-blue-50 p-3 rounded border border-blue-100">

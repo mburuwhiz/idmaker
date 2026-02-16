@@ -15,6 +15,9 @@ export const CR80_HEIGHT_MM = 54
 export const CR80_WIDTH_PX = Math.round(mmToPx(CR80_WIDTH_MM))
 export const CR80_HEIGHT_PX = Math.round(mmToPx(CR80_HEIGHT_MM))
 
+export const SAFE_MARGIN_MM = 3
+export const SAFE_MARGIN_PX = mmToPx(SAFE_MARGIN_MM)
+
 // Tray Anchors
 export const SLOT1_X_MM = 31.8
 export const SLOT1_Y_MM = 12.3

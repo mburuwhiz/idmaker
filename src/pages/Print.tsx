@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Printer, ChevronLeft, ChevronRight, FileText, Settings } from 'lucide-react'
 import { renderA4Sheet, exportToPdf } from '../utils/printService'
+import { generateExceptionReport } from '../utils/dataService'
 
 const Print: React.FC = () => {
   const [batches, setBatches] = useState<any[]>([])
@@ -78,6 +79,7 @@ const Print: React.FC = () => {
   const handlePrintAll = async () => {
     if (students.length === 0 || !selectedProfileId || !selectedLayoutId) return
 
+    const failedStudents: any[] = []
     const errors = validateBatch()
     if (errors.length > 0) {
       if (!confirm(`Found ${errors.length} potential issues:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}\n\nContinue anyway?`)) {
@@ -95,12 +97,27 @@ const Print: React.FC = () => {
       for (let i = 0; i < Math.ceil(students.length / 2); i++) {
         const s1 = students[i * 2]
         const s2 = students[i * 2 + 1]
+
+        // Track failures (e.g. missing photo)
+        if (!s1.photoPath) {
+          failedStudents.push({ ...s1, exceptionReason: 'Missing Photo' })
+        }
+        if (s2 && !s2.photoPath) {
+          failedStudents.push({ ...s2, exceptionReason: 'Missing Photo' })
+        }
+
         const sheet = await renderA4Sheet(s1.data, s2?.data, layout.content, profile)
         sheets.push(sheet)
       }
 
       const batch = batches.find(b => b.id === selectedBatchId)
       await exportToPdf(sheets, batch?.name || 'Batch Export')
+
+      if (failedStudents.length > 0) {
+        if (confirm(`Batch exported. ${failedStudents.length} cards had issues. Generate Exception Report?`)) {
+          generateExceptionReport(failedStudents)
+        }
+      }
     } catch (e) {
       console.error(e)
       alert('Error generating PDF')

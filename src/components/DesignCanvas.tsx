@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import * as fabric from 'fabric'
-import { CR80_WIDTH_PX, CR80_HEIGHT_PX, mmToPx } from '../utils/units'
+import { CR80_WIDTH_PX, CR80_HEIGHT_PX, mmToPx, SAFE_MARGIN_PX } from '../utils/units'
 
 interface DesignCanvasProps {
   onCanvasReady?: (canvas: fabric.Canvas) => void
@@ -74,6 +74,25 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       })
 
       fabricCanvasRef.current = canvas
+
+      // Add Safe Margin Guide (visual only)
+      const safeMargin = new fabric.Rect({
+        left: SAFE_MARGIN_PX,
+        top: SAFE_MARGIN_PX,
+        width: CR80_WIDTH_PX - 2 * SAFE_MARGIN_PX,
+        height: CR80_HEIGHT_PX - 2 * SAFE_MARGIN_PX,
+        fill: 'transparent',
+        stroke: '#ff0000',
+        strokeDashArray: [5, 5],
+        selectable: false,
+        evented: false,
+        strokeWidth: 1,
+        opacity: 0.5,
+      })
+      // @ts-ignore
+      safeMargin.isGuide = true
+      canvas.add(safeMargin)
+
       if (onCanvasReady) {
         onCanvasReady(canvas)
       }
