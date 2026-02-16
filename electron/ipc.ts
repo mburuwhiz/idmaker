@@ -92,6 +92,14 @@ export function setupIpc() {
     return { batchId, count: data.length }
   })
 
+  ipcMain.handle('open-directory', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    })
+    if (result.canceled) return null
+    return result.filePaths[0]
+  })
+
   // File system restricted to photo matching
   ipcMain.handle('match-photos', async (_event, batchId, dirPath) => {
     if (!fs.existsSync(dirPath)) return 0

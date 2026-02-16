@@ -153,34 +153,68 @@ const Calibration: React.FC = () => {
 
               <div className="p-4 bg-blue-50 rounded border border-blue-100">
                 <h4 className="font-bold text-blue-800 text-sm mb-2">Step 2: Measure & Enter</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Measured Width (mm)</label>
-                    <input
-                      type="number" step="0.1" placeholder="e.g. 99.2"
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value)
-                        if (val > 0) updateProfile('scaleX', 100 / val)
-                      }}
-                      className="w-full border rounded p-2 text-sm"
-                    />
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Left Shift (mm)</label>
+                      <input
+                        type="number" step="0.1" placeholder="e.g. -1.5"
+                        onChange={(e) => updateProfile('offsetX', parseFloat(e.target.value) || 0)}
+                        className="w-full border rounded p-2 text-sm"
+                      />
+                      <p className="text-[9px] text-blue-400 mt-1">Negative moves left</p>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Up/Down Shift (mm)</label>
+                      <input
+                        type="number" step="0.1" placeholder="e.g. 2.0"
+                        onChange={(e) => updateProfile('offsetY', parseFloat(e.target.value) || 0)}
+                        className="w-full border rounded p-2 text-sm"
+                      />
+                      <p className="text-[9px] text-blue-400 mt-1">Positive moves down</p>
+                    </div>
                   </div>
+
                   <div>
-                    <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Measured Height (mm)</label>
+                    <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Slot 2 Vertical Error (mm)</label>
                     <input
-                      type="number" step="0.1" placeholder="e.g. 100.5"
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value)
-                        if (val > 0) updateProfile('scaleY', 100 / val)
-                      }}
+                      type="number" step="0.1" placeholder="e.g. 0.5"
+                      onChange={(e) => updateProfile('slot2YOffset', parseFloat(e.target.value) || 0)}
                       className="w-full border rounded p-2 text-sm"
                     />
+                    <p className="text-[9px] text-blue-400 mt-1">Correction for bottom card only</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-blue-200">
+                    <div>
+                      <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Width Error (mm / 100mm)</label>
+                      <input
+                        type="number" step="0.1" placeholder="e.g. 0.2"
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value)
+                          updateProfile('scaleX', 100 / (100 + (val || 0)))
+                        }}
+                        className="w-full border rounded p-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-blue-500 uppercase mb-1">Height Error (mm / 100mm)</label>
+                      <input
+                        type="number" step="0.1" placeholder="e.g. -0.5"
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value)
+                          updateProfile('scaleY', 100 / (100 + (val || 0)))
+                        }}
+                        className="w-full border rounded p-2 text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="text-center p-4">
-                 <p className="text-xs text-gray-500">Scale factors will update automatically as you type. Switch back to Parameters to save.</p>
+              <div className="text-center p-2">
+                 <p className="text-[10px] text-gray-500 italic">Values update the profile parameters instantly. Go to "Parameters" to save.</p>
               </div>
             </div>
           )}

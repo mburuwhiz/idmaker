@@ -1,5 +1,6 @@
 import * as fabric from 'fabric'
 import { jsPDF } from 'jspdf'
+import { processPhoto } from './photoService'
 import {
   mmToPx,
   CR80_WIDTH_PX,
@@ -37,14 +38,16 @@ export async function renderCard(layoutJson: string, studentData: any, photoData
 
     // Replace photo placeholder
     if (obj.isPhotoPlaceholder && photoData) {
-      const img = await fabric.Image.fromURL(photoData)
+      // Apply smartcrop processing
+      const processedData = await processPhoto(photoData, obj.width, obj.height)
+      const img = await fabric.Image.fromURL(processedData)
+
       img.set({
         left: obj.left,
         top: obj.top,
         width: obj.width,
         height: obj.height,
-        scaleX: obj.width / img.width!,
-        scaleY: obj.height / img.height!,
+        // No extra scaling needed as processPhoto returns exact size
       })
       canvas.remove(obj)
       canvas.add(img)
