@@ -124,6 +124,13 @@ const Calibration: React.FC = () => {
               >
                 Save Profile
               </button>
+
+              <button
+                onClick={() => alert('Printing Test Sheet... (Simulated)')}
+                className="w-full border-2 border-slate-200 text-slate-600 font-bold py-2 rounded-lg hover:bg-slate-50 transition mt-2"
+              >
+                Print Test Sheet
+              </button>
             </div>
           ) : (
             <div className="space-y-6">

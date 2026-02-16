@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import Calibration from './pages/Calibration'
 import StudentData from './pages/StudentData'
@@ -31,6 +31,13 @@ const Settings = () => (
 
 function App() {
   const [activeTab, setActiveTab] = useState('design')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Simulate initial load
+    const timer = setTimeout(() => setLoading(false), 1500)
+    return () => clearTimeout(timer)
+  }, [])
 
   const renderContent = () => {
     switch (activeTab) {
@@ -44,8 +51,18 @@ function App() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white">
+        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">WhizPoint ID</h2>
+        <p className="text-slate-500 text-sm mt-2">Initializing Production System...</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden text-slate-900">
+    <div className="flex h-screen bg-slate-50 overflow-hidden text-slate-900 font-sans">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="flex-1 overflow-auto">
         {renderContent()}

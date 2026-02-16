@@ -199,10 +199,17 @@ const Print: React.FC = () => {
             </div>
 
             <button
-              onClick={() => {}}
+              onClick={async () => {
+                if (!previewUrl) return
+                // In a real app, this would send to a printer or open print dialog
+                const link = document.createElement('a')
+                link.download = 'ID_Pair_Preview.png'
+                link.href = previewUrl
+                link.click()
+              }}
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition mb-3"
             >
-              <Printer size={20} /> Print Current Pair
+              <Printer size={20} /> Download Current Pair
             </button>
 
             <button

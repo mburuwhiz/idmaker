@@ -32,7 +32,10 @@ export function setupIpc() {
   })
 
   ipcMain.handle('get-students', (_event, batchId) => {
-    return db.prepare('SELECT * FROM students WHERE batchId = ?').all(batchId)
+    if (batchId) {
+      return db.prepare('SELECT * FROM students WHERE batchId = ?').all(batchId)
+    }
+    return db.prepare('SELECT * FROM students').all()
   })
 
   ipcMain.handle('update-student', (_event, id, data, status) => {

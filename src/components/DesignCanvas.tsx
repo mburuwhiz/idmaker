@@ -75,6 +75,22 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
       fabricCanvasRef.current = canvas
 
+      // Add Card Border (Exact ID Space)
+      const cardBorder = new fabric.Rect({
+        left: 0,
+        top: 0,
+        width: CR80_WIDTH_PX,
+        height: CR80_HEIGHT_PX,
+        fill: 'transparent',
+        stroke: '#000000',
+        strokeWidth: 1,
+        selectable: false,
+        evented: false,
+      })
+      // @ts-ignore
+      cardBorder.isGuide = true
+      canvas.add(cardBorder)
+
       // Add Safe Margin Guide (visual only)
       const safeMargin = new fabric.Rect({
         left: SAFE_MARGIN_PX,
