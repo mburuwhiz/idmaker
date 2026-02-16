@@ -59,19 +59,33 @@ const Settings = () => {
 function App() {
   const [activeTab, setActiveTab] = useState('design')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeBatchId, setActiveBatchId] = useState<number | null>(null)
 
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        await window.ipcRenderer.invoke('get-profiles')
-        setLoading(false)
-      } catch (e) {
-        console.warn('Waiting for backend...', e)
-        setTimeout(checkConnection, 500)
-      }
+  const checkConnection = async () => {
+    try {
+      await window.ipcRenderer.invoke('get-profiles')
+      setLoading(false)
+      setError(null)
+    } catch (e) {
+      console.warn('Waiting for backend...', e)
+      setError((e as Error).message)
+      // Retry automatically for a while
+      setTimeout(checkConnection, 1000)
     }
+  }
+
+  useEffect(() => {
     checkConnection()
+
+    // Show a timeout message if it takes more than 5 seconds
+    const timer = setTimeout(() => {
+      if (loading) {
+        setError("Backend connection is taking longer than expected. Please wait or try restarting the application.")
+      }
+    }, 5000)
+
+    return () => clearTimeout(timer)
   }, [])
 
   const renderContent = () => {
@@ -93,10 +107,26 @@ function App() {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white">
-        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">WhizPoint ID</h2>
-        <p className="text-slate-500 text-sm mt-2">Initializing Production System...</p>
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
+        {!error ? (
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+        ) : (
+          <div className="mb-6 text-amber-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          </div>
+        )}
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">WhizPoint ID</h2>
+        <p className="text-slate-400 text-sm mt-2 max-w-xs mx-auto">
+          {error || "Initializing Production System..."}
+        </p>
+        {error && (
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-8 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition shadow-lg shadow-blue-900"
+          >
+            Restart Application
+          </button>
+        )}
       </div>
     )
   }

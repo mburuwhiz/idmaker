@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setupIpc } from './ipc.js'
@@ -23,6 +23,9 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
+// Disable hardware acceleration to resolve EGL/GPU driver errors on some Windows machines
+app.disableHardwareAcceleration()
+
 let win: BrowserWindow | null = null
 
 function createWindow() {
@@ -34,6 +37,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
     },
   })
+
+  // Remove system menu bar (File, Edit, etc.) for a cleaner UI
+  Menu.setApplicationMenu(null)
+  win.removeMenu()
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
