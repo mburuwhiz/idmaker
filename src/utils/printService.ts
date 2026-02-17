@@ -29,21 +29,33 @@ export async function renderCard(
   const objects = canvas.getObjects()
 
   for (const obj of objects as any[]) {
-    // Replace text placeholders
-    if (obj.text && obj.isPlaceholder) {
-      const match = obj.text.match(/\{\{(.+)\}\}/)
-      if (match) {
-        const key = match[1]
-        // Case-insensitive lookup
-        const dataKey = Object.keys(studentData).find(k => k.toUpperCase() === key.toUpperCase())
-        const value = dataKey ? studentData[dataKey] : undefined
+    // Replace text placeholders (support multiple placeholders and handle spaces/casing)
+    if (obj.text) {
+      const originalText = obj.text
+      let newText = originalText
+      const placeholderRegex = /\{\{(.+?)\}\}/g
+      const matches = originalText.match(placeholderRegex)
+      let hasDataMatch = false
 
-        if (value !== undefined) {
-          obj.set('text', String(value))
-        } else {
-          // If no data, keep placeholder but maybe highlight it
-          obj.set('fill', '#ff0000') // Red to indicate missing data
+      if (matches) {
+        for (const fullMatch of matches) {
+          const key = fullMatch.slice(2, -2).trim()
+          // Case-insensitive and space-insensitive lookup
+          const dataKey = Object.keys(studentData).find(k => k.trim().toUpperCase() === key.toUpperCase())
+          const value = dataKey ? studentData[dataKey] : undefined
+
+          if (value !== undefined) {
+            newText = newText.replaceAll(fullMatch, String(value))
+            hasDataMatch = true
+          }
         }
+      }
+
+      if (hasDataMatch) {
+        obj.set('text', newText)
+      } else if (obj.isPlaceholder && originalText.includes('{{')) {
+        // If it's marked as placeholder but no data found, keep it red
+        obj.set('fill', '#ff0000')
       }
     }
 

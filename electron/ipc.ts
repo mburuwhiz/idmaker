@@ -5,7 +5,11 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const XLSX = require('xlsx')
+let XLSX = require('xlsx')
+// Handle potential ESM wrapper or default export when using require in an ESM context
+if (XLSX && XLSX.default && typeof XLSX.readFile !== 'function') {
+  XLSX = XLSX.default
+}
 
 export function setupIpc() {
   console.log('[IPC] Registering handlers...')
@@ -81,6 +85,13 @@ export function setupIpc() {
   ipcMain.handle('import-excel', async () => {
     try {
       console.log('[IPC] import-excel called')
+
+      // Defensively check XLSX library
+      if (typeof XLSX.readFile !== 'function') {
+        console.error('[IPC] XLSX.readFile is not a function. Current XLSX keys:', Object.keys(XLSX))
+        throw new TypeError('XLSX library failed to load correctly.')
+      }
+
       const result = await dialog.showOpenDialog({
         filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }]
       })
@@ -88,6 +99,7 @@ export function setupIpc() {
       if (result.canceled || result.filePaths.length === 0) return null
 
       const filePath = result.filePaths[0]
+      console.log('[IPC] Reading Excel file:', filePath)
       const workbook = XLSX.readFile(filePath)
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
       const data = XLSX.utils.sheet_to_json(sheet)

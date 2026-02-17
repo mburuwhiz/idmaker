@@ -87,6 +87,7 @@ const Design: React.FC = () => {
                 'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'underline',
                 'stroke', 'fill', 'strokeWidth'
             ]),
+            type: obj.type, // Explicitly include type
             _actual: obj
         })
       } else {
@@ -148,6 +149,7 @@ const Design: React.FC = () => {
         'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'underline',
         'stroke', 'fill', 'strokeWidth'
       ]),
+      type: activeObject.type, // Explicitly include type
       _actual: activeObject
     })
   }
@@ -420,13 +422,13 @@ const Design: React.FC = () => {
                       <input
                         type="color"
                         value={
-                          selectedObject.type === 'line'
+                          (selectedObject.type === 'line' || selectedObject.type === 'polyline')
                             ? (selectedObject.stroke || '#000000')
                             : (selectedObject.fill || '#000000')
                         }
                         onChange={(e) => {
                           const color = e.target.value
-                          if (selectedObject.type === 'line') {
+                          if (selectedObject.type === 'line' || selectedObject.type === 'polyline') {
                             updateSelected('stroke', color)
                           } else if (selectedObject.type === 'rect') {
                             updateSelected({ fill: color, stroke: color })
@@ -437,6 +439,16 @@ const Design: React.FC = () => {
                         className="w-full h-10 rounded-xl cursor-pointer border-2 border-slate-100"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Stroke Width</label>
+                    <input
+                      type="number"
+                      value={selectedObject.strokeWidth || 0}
+                      onChange={(e) => updateSelected('strokeWidth', Number(e.target.value))}
+                      className="w-full border border-slate-200 rounded-xl p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
                   </div>
                 </div>
 
