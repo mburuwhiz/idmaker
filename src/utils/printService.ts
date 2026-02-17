@@ -33,6 +33,11 @@ export async function renderCard(
   const objects = [...canvas.getObjects()]
 
   for (const obj of objects as any[]) {
+    // Hide any individual photo text/placeholder guides if they escape their groups
+    if (obj.isPhotoText || obj.get?.('isPhotoText')) {
+      obj.set('visible', false)
+    }
+
     // Replace text placeholders (support multiple placeholders and handle spaces/casing)
     if (obj.text) {
       const originalText = obj.text
@@ -68,7 +73,9 @@ export async function renderCard(
       // Always hide the "PHOTO" text guide during printing/export
       const children = obj.getObjects ? obj.getObjects() : (obj._objects || [])
       children.forEach((child: any) => {
-        if (child.isPhotoText) child.set('visible', false)
+        if (child.isPhotoText || child.get('isPhotoText')) {
+          child.set('visible', false)
+        }
       })
 
       if (photoData) {

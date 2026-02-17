@@ -38,7 +38,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       const ensureGuides = () => {
         const objects = canvas.getObjects()
         objects.forEach((obj: any) => {
-          if (obj.isGuide) canvas.remove(obj)
+          if ((obj as any).isGuide) canvas.remove(obj)
         })
 
         // Safe Margin Guide
@@ -74,14 +74,20 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       }
     }
 
-    // Auto-scaling logic
+    // Auto-scaling logic - optimized for landscape
     const updateScale = () => {
       if (!containerRef.current) return
-      const padding = 100
+      const padding = 80 // Reduced padding for better visibility
       const { clientWidth, clientHeight } = containerRef.current
-      const scaleX = (clientWidth - padding) / CR80_WIDTH_PX
-      const scaleY = (clientHeight - padding) / CR80_HEIGHT_PX
-      const newScale = Math.min(scaleX, scaleY, 1.5) // Max 150% zoom
+
+      const availableWidth = clientWidth - padding
+      const availableHeight = clientHeight - padding
+
+      const scaleX = availableWidth / CR80_WIDTH_PX
+      const scaleY = availableHeight / CR80_HEIGHT_PX
+
+      // We want the card to fit comfortably but not be too small
+      const newScale = Math.min(scaleX, scaleY, 1.2)
       setScale(newScale)
     }
 
@@ -93,24 +99,31 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [onCanvasReady])
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-slate-900 overflow-hidden relative flex items-center justify-center p-12">
+    <div ref={containerRef} className="w-full h-full bg-slate-900 overflow-hidden relative flex items-center justify-center">
+      {/* Background patterns for a more "design" feel */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+
       {/* Centered Workspace Container */}
       <div
-        className="shadow-[0_0_80px_rgba(0,0,0,0.6)] border-[12px] border-slate-800 rounded-2xl overflow-hidden bg-white transition-transform duration-300 ease-out"
+        className="shadow-[0_0_100px_rgba(0,0,0,0.7)] border-[16px] border-slate-800 rounded-[2rem] overflow-hidden bg-white transition-all duration-500 ease-out"
         style={{
             width: CR80_WIDTH_PX,
             height: CR80_HEIGHT_PX,
             transform: `scale(${scale})`,
-            transformOrigin: 'center center'
+            transformOrigin: 'center center',
+            flexShrink: 0
         }}
       >
         <canvas ref={canvasRef} />
       </div>
 
       {/* Info Overlay */}
-      <div className="absolute bottom-6 right-6 flex flex-col gap-2 items-end pointer-events-none opacity-50">
-        <div className="bg-slate-900/80 text-white text-[9px] px-3 py-1.5 rounded-full backdrop-blur-md uppercase font-black tracking-[0.1em] shadow-xl border border-white/10">
-          Fixed Resolution: {CR80_WIDTH_PX} x {CR80_HEIGHT_PX} PX
+      <div className="absolute bottom-10 left-10 flex flex-col gap-3 pointer-events-none">
+        <div className="bg-blue-600/90 text-white text-[10px] px-4 py-2 rounded-xl backdrop-blur-md uppercase font-black tracking-[0.2em] shadow-2xl border border-white/20">
+          Landscape Mode: 86 x 54 mm
+        </div>
+        <div className="bg-slate-900/80 text-slate-400 text-[10px] px-4 py-2 rounded-xl backdrop-blur-md uppercase font-black tracking-[0.1em] shadow-xl border border-white/5">
+          Resolution: {CR80_WIDTH_PX} x {CR80_HEIGHT_PX} PX (300 DPI)
         </div>
       </div>
     </div>

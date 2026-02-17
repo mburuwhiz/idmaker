@@ -327,7 +327,12 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                           <div className="aspect-square bg-slate-800 rounded-3xl overflow-hidden border border-white/5 relative group">
                               {currentStudent.photoPath ? (
                                   <img
-                                    src={`data:image/jpeg;base64,${window.ipcRenderer.sendSync('read-photo-sync', currentStudent.photoPath)}`}
+                                    src={((): string => {
+                                        const photo = window.ipcRenderer.sendSync('read-photo-sync', currentStudent.photoPath)
+                                        const ext = currentStudent.photoPath.split('.').pop()?.toLowerCase() || 'jpeg'
+                                        const mime = ext === 'png' ? 'image/png' : 'image/jpeg'
+                                        return `data:${mime};base64,${photo}`
+                                    })()}
                                     className="w-full h-full object-cover opacity-50"
                                   />
                               ) : (

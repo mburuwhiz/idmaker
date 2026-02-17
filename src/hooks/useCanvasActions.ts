@@ -59,6 +59,7 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     })
     // @ts-ignore
     text.isPhotoText = true
+    text.set('isPhotoText', true)
 
     const group = new fabric.Group([rect, text], {
       left: 20,
