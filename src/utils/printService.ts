@@ -77,8 +77,9 @@ export async function renderCard(
       const children = obj.getObjects ? obj.getObjects() : (obj._objects || [])
       children.forEach((child: any) => {
         // Fallback check for text content 'PHOTO' to be safe
-        if (child.isPhotoText || child.get?.('isPhotoText') || child.text === 'PHOTO') {
+        if (child.isPhotoText || child.get?.('isPhotoText') || (child.text && child.text.trim().toUpperCase() === 'PHOTO')) {
           child.set('visible', false)
+          child.set('opacity', 0) // Extra safety
         }
       })
 

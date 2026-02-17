@@ -177,23 +177,33 @@ export function setupIpc() {
   ipcMain.handle('match-photos', async (_event, batchId, dirPath) => {
     if (!fs.existsSync(dirPath)) return 0
     const files = fs.readdirSync(dirPath)
-    const students = db.prepare('SELECT id, admNo FROM students WHERE batchId = ?').all(batchId) as any[]
+    const students = db.prepare('SELECT id, data FROM students WHERE batchId = ?').all(batchId) as any[]
 
     let matchedCount = 0
     const updateStudent = db.prepare('UPDATE students SET photoPath = ?, printStatus = ?, exceptionReason = ? WHERE id = ?')
 
     db.transaction(() => {
       for (const student of students) {
-        // Case-insensitive and trimmed matching
-        const targetAdmNo = student.admNo.trim().toUpperCase()
-        const matches = files.filter(f => f.split('.')[0].trim().toUpperCase() === targetAdmNo)
+        const studentData = JSON.parse(student.data)
+        // Find PHOTOID in student data (case-insensitive)
+        const photoIdKey = Object.keys(studentData).find(k => k.trim().toUpperCase() === 'PHOTOID' || k.trim().toUpperCase() === 'PHOTO_ID')
+        const photoId = photoIdKey ? String(studentData[photoIdKey]).trim() : null
+
+        if (!photoId) {
+          updateStudent.run(null, 'failed', 'Missing PHOTOID in Excel', student.id)
+          continue
+        }
+
+        // Case-insensitive and trimmed matching against files
+        const targetPhotoId = photoId.toUpperCase()
+        const matches = files.filter(f => path.parse(f).name.trim().toUpperCase() === targetPhotoId)
 
         if (matches.length === 0) {
           // No photo found
-          updateStudent.run(null, 'failed', 'Missing Photo', student.id)
+          updateStudent.run(null, 'failed', `Photo Not Found (${photoId})`, student.id)
         } else if (matches.length > 1) {
           // Multiple extensions found (e.g. 001.jpg and 001.png)
-          updateStudent.run(null, 'failed', `Conflict: Multiple photos found (${matches.join(', ')})`, student.id)
+          updateStudent.run(null, 'failed', `Conflict: Multiple photos found for ${photoId} (${matches.join(', ')})`, student.id)
         } else {
           // Exactly one match
           updateStudent.run(path.join(dirPath, matches[0]), 'pending', null, student.id)
@@ -206,11 +216,20 @@ export function setupIpc() {
   })
 
   ipcMain.handle('export-exceptions', async (_event, batchId) => {
-    const students = db.prepare("SELECT admNo, exceptionReason FROM students WHERE batchId = ? AND printStatus = 'failed'").all(batchId) as any[]
+    const students = db.prepare("SELECT data, exceptionReason FROM students WHERE batchId = ? AND printStatus = 'failed'").all(batchId) as any[]
 
     if (students.length === 0) return null
 
-    const worksheet = XLSX.utils.json_to_sheet(students)
+    // Map data to flat rows for Excel export
+    const exportRows = students.map(s => {
+      const row = JSON.parse(s.data)
+      return {
+        ...row,
+        REASON: s.exceptionReason
+      }
+    })
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Exceptions')
 
