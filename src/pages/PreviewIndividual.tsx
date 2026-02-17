@@ -23,13 +23,21 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
   const loadData = async () => {
     setLoading(true)
     try {
-      const s = await window.ipcRenderer.invoke('get-students', batchId)
-      const l = await window.ipcRenderer.invoke('get-layouts')
+      const [s, l, b] = await Promise.all([
+        window.ipcRenderer.invoke('get-students', batchId),
+        window.ipcRenderer.invoke('get-layouts'),
+        window.ipcRenderer.invoke('get-batches')
+      ])
 
       setStudents(s.map((item: any) => ({ ...item, data: JSON.parse(item.data) })))
       setLayouts(l)
 
-      if (l.length > 0) setSelectedLayoutId(l[0].id)
+      const batch = b.find((item: any) => item.id === batchId)
+      if (batch && batch.layoutId) {
+          setSelectedLayoutId(batch.layoutId)
+      } else if (l.length > 0) {
+          setSelectedLayoutId(l[0].id)
+      }
     } catch (e) {
       toast.error('Failed to load data')
     } finally {

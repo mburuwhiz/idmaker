@@ -164,11 +164,13 @@ const Design: React.FC = () => {
 
   const handleZoomFit = () => {
     if (!canvas || !canvas.getElement()) return
-    const container = canvas.getElement().parentElement.parentElement
+    const container = canvas.getElement().parentElement?.parentElement
+    if (!container) return
+
     const padding = 60
     const scaleX = (container.clientWidth - padding) / CR80_WIDTH_PX
     const scaleY = (container.clientHeight - padding) / CR80_HEIGHT_PX
-    const zoom = Math.min(scaleX, scaleY)
+    const zoom = Math.min(scaleX, scaleY, 1)
     canvas.setZoom(zoom)
 
     const vpt = [...canvas.viewportTransform!]
@@ -213,6 +215,37 @@ const Design: React.FC = () => {
         toast.error('Failed to rename layout')
       }
     }
+  }
+
+  const handleDownloadSampleExcel = () => {
+    if (!canvas) return
+    const objects = canvas.getObjects()
+    const placeholders = objects
+      .filter((obj: any) => (obj as any).isPlaceholder)
+      .map((obj: any) => {
+        const match = (obj.text || '').match(/\{\{(.+)\}\}/)
+        return match ? match[1] : null
+      })
+      .filter(Boolean) as string[]
+
+    if (placeholders.length === 0) {
+      toast.error('No placeholders found in current layout')
+      return
+    }
+
+    // Add ADM_NO as it's required for matching photos
+    const headers = [...new Set(['ADM_NO', ...placeholders])]
+
+    const csvContent = headers.join(',') + '\n' + headers.map(() => 'sample_data').join(',')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${layoutName.replace(/\s+/g, '_')}_sample.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success('Sample CSV downloaded!')
   }
 
   return (
@@ -298,6 +331,14 @@ const Design: React.FC = () => {
               <Settings2 size={18} />
             </button>
           </div>
+
+          <button
+             onClick={handleDownloadSampleExcel}
+             className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 bg-white hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2 font-bold text-[10px] uppercase"
+             title="Download Sample Excel for this layout"
+          >
+             <Download size={16} /> Sample Data
+          </button>
 
           <button onClick={handleSave} className="bg-blue-600 text-white px-5 py-2 rounded-lg flex items-center gap-2 font-black uppercase tracking-wider text-[11px] hover:bg-blue-700 transition shadow-lg shadow-blue-200 active:scale-95">
             <Save size={18} /> Save Layout

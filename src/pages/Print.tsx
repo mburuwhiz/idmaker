@@ -38,14 +38,28 @@ const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
     setLayouts(l)
 
     if (p.length > 0) setSelectedProfileId(p.find((prof: any) => prof.isDefault)?.id || p[0].id)
-    if (l.length > 0) setSelectedLayoutId(l[0].id)
+
+    if (initialBatchId) {
+        const batch = b.find((item: any) => item.id === initialBatchId)
+        if (batch && batch.layoutId) {
+            setSelectedLayoutId(batch.layoutId)
+        } else if (l.length > 0) {
+            setSelectedLayoutId(l[0].id)
+        }
+    } else if (l.length > 0) {
+        setSelectedLayoutId(l[0].id)
+    }
   }
 
   useEffect(() => {
     if (selectedBatchId) {
       loadStudents(selectedBatchId)
+      const batch = batches.find(b => b.id === selectedBatchId)
+      if (batch && batch.layoutId) {
+          setSelectedLayoutId(batch.layoutId)
+      }
     }
-  }, [selectedBatchId])
+  }, [selectedBatchId, batches])
 
   const loadStudents = async (batchId: number) => {
     const data = await window.ipcRenderer.invoke('get-students', batchId)

@@ -13,15 +13,20 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   showGrid = false,
   snapToGrid = false
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
 
   useEffect(() => {
-    if (canvasRef.current && !fabricCanvasRef.current) {
+    if (canvasRef.current && containerRef.current && !fabricCanvasRef.current) {
+      const container = containerRef.current
+      const width = container.clientWidth || 1000
+      const height = container.clientHeight || 800
+
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: CR80_WIDTH_PX,
-        height: CR80_HEIGHT_PX,
-        backgroundColor: '#ffffff',
+        width: width,
+        height: height,
+        backgroundColor: '#cbd5e1', // slate-300 for workspace
         preserveObjectStacking: true,
       })
 
@@ -75,14 +80,34 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
       fabricCanvasRef.current = canvas
 
-      // Add Card Border (Exact ID Space)
+      // Add Card Background (The actual printable area)
+      const cardBg = new fabric.Rect({
+        left: 0,
+        top: 0,
+        width: CR80_WIDTH_PX,
+        height: CR80_HEIGHT_PX,
+        fill: '#ffffff',
+        selectable: false,
+        evented: false,
+        shadow: new fabric.Shadow({
+            color: 'rgba(0,0,0,0.3)',
+            blur: 30,
+            offsetX: 0,
+            offsetY: 15
+        })
+      })
+      // @ts-ignore
+      cardBg.isGuide = true
+      canvas.add(cardBg)
+
+      // Add Card Border
       const cardBorder = new fabric.Rect({
         left: 0,
         top: 0,
         width: CR80_WIDTH_PX,
         height: CR80_HEIGHT_PX,
         fill: 'transparent',
-        stroke: '#000000',
+        stroke: '#94a3b8', // slate-400
         strokeWidth: 1,
         selectable: false,
         evented: false,
@@ -91,14 +116,14 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       cardBorder.isGuide = true
       canvas.add(cardBorder)
 
-      // Add Safe Margin Guide (visual only)
+      // Add Safe Margin Guide
       const safeMargin = new fabric.Rect({
         left: SAFE_MARGIN_PX,
         top: SAFE_MARGIN_PX,
         width: CR80_WIDTH_PX - 2 * SAFE_MARGIN_PX,
         height: CR80_HEIGHT_PX - 2 * SAFE_MARGIN_PX,
         fill: 'transparent',
-        stroke: '#ff0000',
+        stroke: '#f87171', // red-400
         strokeDashArray: [5, 5],
         selectable: false,
         evented: false,
@@ -113,20 +138,17 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         onCanvasReady(canvas)
       }
 
-      // Initial zoom to fit
-      const container = canvasRef.current.parentElement?.parentElement
-      if (container) {
-        const padding = 100
-        const scaleX = (container.clientWidth - padding) / CR80_WIDTH_PX
-        const scaleY = (container.clientHeight - padding) / CR80_HEIGHT_PX
-        const zoom = Math.min(scaleX, scaleY, 1)
-        canvas.setZoom(zoom)
-        // Center the viewport
-        const vpt = canvas.viewportTransform!
-        vpt[4] = (container.clientWidth - CR80_WIDTH_PX * zoom) / 2
-        vpt[5] = (container.clientHeight - CR80_HEIGHT_PX * zoom) / 2
-        canvas.requestRenderAll()
-      }
+      // Initial zoom to fit and center
+      const padding = 60
+      const scaleX = (width - padding) / CR80_WIDTH_PX
+      const scaleY = (height - padding) / CR80_HEIGHT_PX
+      const zoom = Math.min(scaleX, scaleY, 1)
+      canvas.setZoom(zoom)
+
+      const vpt = canvas.viewportTransform!
+      vpt[4] = (width - CR80_WIDTH_PX * zoom) / 2
+      vpt[5] = (height - CR80_HEIGHT_PX * zoom) / 2
+      canvas.requestRenderAll()
     }
 
     const canvas = fabricCanvasRef.current
@@ -160,10 +182,8 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [])
 
   return (
-    <div className="w-full h-full bg-slate-200 overflow-hidden relative flex items-center justify-center">
-      <div className="shadow-[0_50px_100px_rgba(0,0,0,0.4)] bg-white border-4 border-white rounded-sm overflow-hidden">
-        <canvas ref={canvasRef} />
-      </div>
+    <div ref={containerRef} className="w-full h-full bg-slate-300 overflow-hidden relative">
+      <canvas ref={canvasRef} />
 
       {/* Zoom indicator overlay */}
       <div className="absolute bottom-6 right-6 flex flex-col gap-2 items-end pointer-events-none">

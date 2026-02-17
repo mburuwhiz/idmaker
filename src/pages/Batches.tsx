@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { FileUp, Play, Table, Camera, Share2, PackageOpen } from 'lucide-react'
+import { FileUp, Play, Table, Camera, Share2, PackageOpen, Trash2, Pencil, Layout } from 'lucide-react'
 
 interface Batch {
   id: number
   name: string
   createdAt: string
+  layoutId?: number
 }
 
 interface BatchesProps {
@@ -16,10 +17,20 @@ interface BatchesProps {
 
 const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => {
   const [batches, setBatches] = useState<Batch[]>([])
+  const [layouts, setLayouts] = useState<any[]>([])
 
   useEffect(() => {
-    loadBatches()
+    loadInitialData()
   }, [])
+
+  const loadInitialData = async () => {
+    const [bData, lData] = await Promise.all([
+      window.ipcRenderer.invoke('get-batches'),
+      window.ipcRenderer.invoke('get-layouts')
+    ])
+    setBatches(bData)
+    setLayouts(lData)
+  }
 
   const loadBatches = async () => {
     const data = await window.ipcRenderer.invoke('get-batches')
@@ -54,6 +65,41 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
     }
   }
 
+  const handleDeleteBatch = async (batchId: number) => {
+    if (confirm('Are you sure you want to delete this batch and all its student records? This cannot be undone.')) {
+      try {
+        await window.ipcRenderer.invoke('delete-batch', batchId)
+        toast.success('Batch deleted')
+        loadBatches()
+      } catch (e) {
+        toast.error('Failed to delete batch')
+      }
+    }
+  }
+
+  const handleRenameBatch = async (batch: Batch) => {
+    const newName = prompt('Enter new name for batch:', batch.name)
+    if (newName && newName !== batch.name) {
+      try {
+        await window.ipcRenderer.invoke('rename-batch', batch.id, newName)
+        toast.success('Batch renamed')
+        loadBatches()
+      } catch (e) {
+        toast.error('Failed to rename batch')
+      }
+    }
+  }
+
+  const handleUpdateBatchLayout = async (batchId: number, layoutId: number) => {
+    try {
+      await window.ipcRenderer.invoke('update-batch-layout', batchId, layoutId)
+      toast.success('Batch layout updated')
+      loadBatches()
+    } catch (e) {
+      toast.error('Failed to update batch layout')
+    }
+  }
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -82,9 +128,30 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
       <div className="grid grid-cols-1 gap-4">
         {batches.map(batch => (
           <div key={batch.id} className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold">{batch.name}</h3>
-              <p className="text-sm text-gray-500">Created: {new Date(batch.createdAt).toLocaleString()}</p>
+            <div className="flex-1 min-w-0 mr-4">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-bold text-slate-800 truncate">{batch.name}</h3>
+                <button
+                  onClick={() => handleRenameBatch(batch)}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-blue-600 transition-colors"
+                  title="Rename Batch"
+                >
+                  <Pencil size={14} />
+                </button>
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Created: {new Date(batch.createdAt).toLocaleString()}</p>
+
+              <div className="flex items-center gap-2">
+                 <Layout size={14} className="text-slate-400" />
+                 <select
+                   value={batch.layoutId || ''}
+                   onChange={(e) => handleUpdateBatchLayout(batch.id, Number(e.target.value))}
+                   className="text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                 >
+                   <option value="">Choose Layout...</option>
+                   {layouts.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                 </select>
+              </div>
             </div>
             <div className="flex gap-3">
               <button
@@ -120,6 +187,13 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
               >
                 <Play size={18} /> Start Printing
+              </button>
+              <button
+                onClick={() => handleDeleteBatch(batch.id)}
+                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                title="Delete Batch"
+              >
+                <Trash2 size={20} />
               </button>
             </div>
           </div>

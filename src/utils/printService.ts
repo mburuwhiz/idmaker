@@ -29,9 +29,15 @@ export async function renderCard(layoutJson: string, studentData: any, photoData
       const match = obj.text.match(/\{\{(.+)\}\}/)
       if (match) {
         const key = match[1]
-        obj.set('text', studentData[key] || obj.text)
-        if (!studentData[key]) {
-          obj.set('fill', 'red')
+        // Case-insensitive lookup
+        const dataKey = Object.keys(studentData).find(k => k.toUpperCase() === key.toUpperCase())
+        const value = dataKey ? studentData[dataKey] : undefined
+
+        if (value !== undefined) {
+          obj.set('text', String(value))
+        } else {
+          // If no data, keep placeholder but maybe highlight it
+          obj.set('fill', '#ff0000') // Red to indicate missing data
         }
       }
     }

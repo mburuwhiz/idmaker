@@ -22,14 +22,14 @@ const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
   const [editData, setEditData] = useState<string>('')
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'failed'>('all')
 
-  useEffect(() => {
-    loadStudents()
-  }, [])
-
   const loadStudents = async () => {
     const data = await window.ipcRenderer.invoke('get-students', initialBatchId)
     setStudents(data.map((s: any) => ({ ...s, data: JSON.parse(s.data) })))
   }
+
+  useEffect(() => {
+    loadStudents()
+  }, [])
 
   const startEdit = (student: Student) => {
     setEditingId(student.id)

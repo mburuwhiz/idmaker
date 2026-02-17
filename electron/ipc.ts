@@ -48,6 +48,22 @@ export function setupIpc() {
     return db.prepare('UPDATE students SET data = ?, printStatus = ? WHERE id = ?').run(JSON.stringify(data), status, id)
   })
 
+  ipcMain.handle('delete-batch', (_event, batchId) => {
+    db.transaction(() => {
+      db.prepare('DELETE FROM students WHERE batchId = ?').run(batchId)
+      db.prepare('DELETE FROM batches WHERE id = ?').run(batchId)
+    })()
+    return true
+  })
+
+  ipcMain.handle('rename-batch', (_event, batchId, newName) => {
+    return db.prepare('UPDATE batches SET name = ? WHERE id = ?').run(newName, batchId)
+  })
+
+  ipcMain.handle('update-batch-layout', (_event, batchId, layoutId) => {
+    return db.prepare('UPDATE batches SET layoutId = ? WHERE id = ?').run(layoutId, batchId)
+  })
+
   // Layouts
   ipcMain.handle('get-layouts', () => {
     return db.prepare('SELECT * FROM layouts').all()
