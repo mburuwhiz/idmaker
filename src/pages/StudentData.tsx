@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Edit, CheckCircle, AlertCircle, Save, X } from 'lucide-react'
+import { Search, Edit, CheckCircle, AlertCircle, Save, X, FileDown } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 interface Student {
   id: number
@@ -7,6 +8,7 @@ interface Student {
   data: any
   photoPath?: string
   printStatus: string
+  exceptionReason?: string
 }
 
 interface StudentDataProps {
@@ -18,6 +20,7 @@ const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editData, setEditData] = useState<string>('')
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'failed'>('all')
 
   useEffect(() => {
     loadStudents()
@@ -45,25 +48,62 @@ const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
     }
   }
 
-  const filteredStudents = students.filter(s =>
-    s.admNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.data.NAME || '').toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const exportExceptions = async () => {
+    if (!initialBatchId) return
+    const res = await window.ipcRenderer.invoke('export-exceptions', initialBatchId)
+    if (res) toast.success(`Exported to ${res}`)
+    else toast.error('No exceptions found to export')
+  }
+
+  const filteredStudents = students.filter(s => {
+    const matchesSearch = s.admNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.data.NAME || '').toLowerCase().includes(searchTerm.toLowerCase())
+
+    if (activeTab === 'all') return matchesSearch
+    return matchesSearch && s.printStatus === activeTab
+  })
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Student Records</h1>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search by name or ADM NO..."
-            className="pl-10 pr-4 py-2 border rounded-lg w-80 focus:ring-2 focus:ring-blue-500 outline-none"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div>
+          <h1 className="text-3xl font-bold">Student Records</h1>
+          <p className="text-gray-500 text-sm mt-1">Manage data and review exceptions for current batch.</p>
         </div>
+        <div className="flex items-center gap-4">
+          {initialBatchId && (
+            <button
+              onClick={exportExceptions}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition font-medium text-sm"
+            >
+              <FileDown size={18} /> Export Exceptions
+            </button>
+          )}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search by name or ADM NO..."
+              className="pl-10 pr-4 py-2 border rounded-lg w-80 focus:ring-2 focus:ring-blue-500 outline-none"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-4 mb-4 border-b">
+        {(['all', 'pending', 'failed'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors ${
+              activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            {tab} ({students.filter(s => tab === 'all' || s.printStatus === tab).length})
+          </button>
+        ))}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -102,6 +142,11 @@ const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
                 <td className="px-6 py-4">
                   {student.printStatus === 'printed' ? (
                     <span className="flex items-center text-green-600 gap-1"><CheckCircle size={16} /> Printed</span>
+                  ) : student.printStatus === 'failed' ? (
+                    <div className="flex flex-col">
+                      <span className="flex items-center text-red-600 gap-1"><AlertCircle size={16} /> Failed</span>
+                      <span className="text-[10px] text-red-400 font-bold uppercase">{student.exceptionReason}</span>
+                    </div>
                   ) : (
                     <span className="flex items-center text-amber-600 gap-1"><AlertCircle size={16} /> Pending</span>
                   )}

@@ -3,7 +3,7 @@ import { useRef } from 'react'
 import toast from 'react-hot-toast'
 import DesignCanvas from '../components/DesignCanvas'
 import { useCanvasActions } from '../hooks/useCanvasActions'
-import { Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2, MoveUp, MoveDown, UserSquare, Bold, Italic } from 'lucide-react'
+import { Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2, MoveUp, MoveDown, UserSquare, Bold, Italic, FileUp } from 'lucide-react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM } from '../utils/units'
 
 const FONTS = [
@@ -21,6 +21,52 @@ const Design: React.FC = () => {
   const [snapToGrid, setSnapToGrid] = useState(false)
   const [selectedObject, setSelectedObject] = useState<any>(null)
   const [layoutName, setLayoutName] = useState('New Layout')
+  const [savedLayouts, setSavedLayouts] = useState<any[]>([])
+
+  useEffect(() => {
+    loadLayouts()
+  }, [])
+
+  const loadLayouts = async () => {
+    try {
+      const data = await window.ipcRenderer.invoke('get-layouts')
+      setSavedLayouts(data)
+    } catch (e) {
+      console.error('Failed to load layouts:', e)
+    }
+  }
+
+  const handleLoad = async (layout: any) => {
+    if (!canvas) return
+    const loadToast = toast.loading('Loading layout...')
+    try {
+      // Clear guides before loading to prevent duplicates
+      const objects = canvas.getObjects()
+      objects.forEach((obj: any) => {
+        if (!obj.isGuide) canvas.remove(obj)
+      })
+
+      await canvas.loadFromJSON(layout.content)
+      setLayoutName(layout.name)
+      toast.success('Layout loaded!', { id: loadToast })
+    } catch (e) {
+      console.error('Load failed:', e)
+      toast.error('Failed to load layout', { id: loadToast })
+    }
+  }
+
+  const handleNew = () => {
+    if (!canvas) return
+    if (confirm('Create new layout? Current unsaved changes will be lost.')) {
+      const objects = canvas.getObjects()
+      objects.forEach((obj: any) => {
+        if (!obj.isGuide) canvas.remove(obj)
+      })
+      setLayoutName('New Layout')
+      canvas.renderAll()
+      toast.success('New layout started')
+    }
+  }
 
   useEffect(() => {
     if (!canvas) return
@@ -95,12 +141,37 @@ const Design: React.FC = () => {
     <div className="flex h-full flex-col">
       <div className="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm z-10">
         <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={layoutName}
-            onChange={(e) => setLayoutName(e.target.value)}
-            className="font-bold text-gray-800 border-none focus:ring-0 w-48"
-          />
+          <button
+            onClick={handleNew}
+            className="p-2 hover:bg-gray-100 rounded text-gray-500 border border-gray-200 flex items-center gap-2 bg-white"
+            title="New Layout"
+          >
+            <FileUp size={16} className="rotate-180" /> <span className="text-xs font-bold">NEW</span>
+          </button>
+
+          <div className="relative group">
+            <input
+              type="text"
+              value={layoutName}
+              onChange={(e) => setLayoutName(e.target.value)}
+              className="font-bold text-gray-800 border-none focus:ring-0 w-48 bg-gray-50 rounded px-2 py-1 hover:bg-gray-100 transition h-9"
+              placeholder="Layout Name..."
+            />
+            {savedLayouts.length > 0 && (
+              <div className="absolute top-full left-0 w-64 bg-white border rounded shadow-2xl mt-1 hidden group-hover:block z-50 max-h-60 overflow-auto border-t-4 border-t-blue-500">
+                <div className="p-2 text-[10px] font-black text-gray-400 uppercase border-b bg-gray-50 tracking-widest">Saved Layouts</div>
+                {savedLayouts.map(l => (
+                  <button
+                    key={l.id}
+                    onClick={() => handleLoad(l)}
+                    className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-b last:border-0 transition-colors uppercase"
+                  >
+                    {l.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="w-px h-6 bg-gray-200 mx-2" />
           <button onClick={() => addText()} className="p-2 hover:bg-gray-100 rounded text-gray-700 flex items-center gap-2">
             <Type size={20} /> <span className="text-sm font-medium">Text</span>

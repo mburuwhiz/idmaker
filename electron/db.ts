@@ -21,7 +21,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS layouts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT UNIQUE NOT NULL,
     content TEXT NOT NULL, -- JSON string of fabric objects
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );

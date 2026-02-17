@@ -112,6 +112,21 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       if (onCanvasReady) {
         onCanvasReady(canvas)
       }
+
+      // Initial zoom to fit
+      const container = canvasRef.current.parentElement?.parentElement
+      if (container) {
+        const padding = 100
+        const scaleX = (container.clientWidth - padding) / CR80_WIDTH_PX
+        const scaleY = (container.clientHeight - padding) / CR80_HEIGHT_PX
+        const zoom = Math.min(scaleX, scaleY, 1)
+        canvas.setZoom(zoom)
+        // Center the viewport
+        const vpt = canvas.viewportTransform!
+        vpt[4] = (container.clientWidth - CR80_WIDTH_PX * zoom) / 2
+        vpt[5] = (container.clientHeight - CR80_HEIGHT_PX * zoom) / 2
+        canvas.requestRenderAll()
+      }
     }
 
     const canvas = fabricCanvasRef.current
@@ -145,9 +160,14 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [])
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-12 bg-slate-200 overflow-auto">
-      <div className="shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] bg-white border border-slate-300">
+    <div className="w-full h-full bg-slate-200 overflow-hidden relative flex items-center justify-center">
+      <div className="shadow-[0_30px_60px_rgba(0,0,0,0.3)] bg-white border border-slate-300">
         <canvas ref={canvasRef} />
+      </div>
+
+      {/* Zoom indicator overlay */}
+      <div className="absolute bottom-4 right-4 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-md pointer-events-none uppercase font-bold tracking-widest">
+        Middle Click to Pan • Scroll to Zoom
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { FileUp, Play, Table, Camera } from 'lucide-react'
+import { FileUp, Play, Table, Camera, Share2, PackageOpen } from 'lucide-react'
 
 interface Batch {
   id: number
@@ -41,11 +41,11 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint }) => {
   }
 
   const handleMatchPhotos = async (batchId: number) => {
-    const dirResult = await window.ipcRenderer.invoke('open-directory')
-    if (!dirResult.canceled && dirResult.filePaths.length > 0) {
+    const dirPath = await window.ipcRenderer.invoke('open-directory')
+    if (dirPath) {
       const loadToast = toast.loading('Matching photos...')
       try {
-        const count = await window.ipcRenderer.invoke('match-photos', batchId, dirResult.filePaths[0])
+        const count = await window.ipcRenderer.invoke('match-photos', batchId, dirPath)
         toast.success(`Matched ${count} photos!`, { id: loadToast })
       } catch (e) {
         toast.error('Photo matching failed', { id: loadToast })
@@ -57,6 +57,19 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint }) => {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Print Batches</h1>
+          <button
+            onClick={async () => {
+              const res = await window.ipcRenderer.invoke('import-batch-wid')
+              if (res) {
+                toast.success(`Imported ${res.count} students from .wid file!`)
+                loadBatches()
+              }
+            }}
+            className="bg-slate-700 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-800 transition"
+            title="Import .wid Sharing File"
+          >
+            <PackageOpen size={20} /> Import .wid
+          </button>
         <button
           onClick={handleImport}
           className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700 transition"
@@ -73,6 +86,16 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint }) => {
               <p className="text-sm text-gray-500">Created: {new Date(batch.createdAt).toLocaleString()}</p>
             </div>
             <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                   const res = await window.ipcRenderer.invoke('export-batch-wid', batch.id)
+                   if (res) toast.success('.wid bundle exported!')
+                }}
+                className="flex items-center gap-2 px-3 py-2 border rounded-lg hover:bg-gray-50 transition text-slate-500"
+                title="Export for sharing (.wid)"
+              >
+                <Share2 size={18} />
+              </button>
               <button
                 onClick={() => handleMatchPhotos(batch.id)}
                 className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 transition"

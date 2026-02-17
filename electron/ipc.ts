@@ -51,45 +51,52 @@ export function setupIpc() {
   })
 
   ipcMain.handle('save-layout', (_event, name, content) => {
-    return db.prepare('INSERT INTO layouts (name, content) VALUES (?, ?)').run(name, content)
+    return db.prepare('INSERT OR REPLACE INTO layouts (name, content) VALUES (?, ?)').run(name, content)
   })
 
   // Specialized Import
   ipcMain.handle('import-excel', async () => {
-    console.log('[IPC] import-excel called')
-    const result = await dialog.showOpenDialog({
-      filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }]
-    })
+    try {
+      console.log('[IPC] import-excel called')
+      const result = await dialog.showOpenDialog({
+        filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }]
+      })
 
-    if (result.canceled || result.filePaths.length === 0) return null
+      if (result.canceled || result.filePaths.length === 0) return null
 
-    const filePath = result.filePaths[0]
-    const workbook = XLSX.readFile(filePath)
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const data = XLSX.utils.sheet_to_json(sheet)
+      const filePath = result.filePaths[0]
+      const workbook = XLSX.readFile(filePath)
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const data = XLSX.utils.sheet_to_json(sheet)
 
-    if (data.length > 0) {
-      console.log('[IPC] First row of imported data:', data[0])
-    }
-
-    const batchName = `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
-    const batchResult = db.prepare('INSERT INTO batches (name) VALUES (?)').run(batchName)
-    const batchId = batchResult.lastInsertRowid
-
-    const insertStudent = db.prepare(`
-      INSERT INTO students (batchId, admNo, data) VALUES (?, ?, ?)
-    `)
-
-    console.log(`[IPC] Importing ${data.length} students into batch ${batchId}...`)
-
-    db.transaction(() => {
-      for (const row of data as any[]) {
-        const admNo = row.ADM_NO || row.admNo || `TEMP-${Math.random()}`
-        insertStudent.run(batchId, admNo.toString(), JSON.stringify(row))
+      if (!data || data.length === 0) {
+        throw new Error('Excel file is empty')
       }
-    })()
 
-    return { batchId, count: data.length }
+      const batchName = `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
+      const batchResult = db.prepare('INSERT INTO batches (name) VALUES (?)').run(batchName)
+      const batchId = batchResult.lastInsertRowid
+
+      const insertStudent = db.prepare(`
+        INSERT INTO students (batchId, admNo, data) VALUES (?, ?, ?)
+      `)
+
+      db.transaction(() => {
+        for (const row of data as any[]) {
+          // Robust ADM_NO detection
+          const keys = Object.keys(row)
+          const admKey = keys.find(k => ['ADM_NO', 'ADM', 'ADMNO', 'ADMISSION', 'STUDENT_ID'].includes(k.toUpperCase()))
+          const admNo = admKey ? row[admKey] : `TEMP-${Math.random().toString(36).substr(2, 5)}`
+
+          insertStudent.run(batchId, admNo.toString(), JSON.stringify(row))
+        }
+      })()
+
+      return { batchId, count: data.length }
+    } catch (err) {
+      console.error('[IPC] Import failed:', err)
+      throw err
+    }
   })
 
   ipcMain.handle('open-directory', async () => {
@@ -107,13 +114,21 @@ export function setupIpc() {
     const students = db.prepare('SELECT id, admNo FROM students WHERE batchId = ?').all(batchId) as any[]
 
     let matchedCount = 0
-    const updatePhoto = db.prepare('UPDATE students SET photoPath = ? WHERE id = ?')
+    const updateStudent = db.prepare('UPDATE students SET photoPath = ?, printStatus = ?, exceptionReason = ? WHERE id = ?')
 
     db.transaction(() => {
       for (const student of students) {
-        const match = files.find(f => f.split('.')[0] === student.admNo)
-        if (match) {
-          updatePhoto.run(path.join(dirPath, match), student.id)
+        const matches = files.filter(f => f.split('.')[0] === student.admNo)
+
+        if (matches.length === 0) {
+          // No photo found
+          updateStudent.run(null, 'failed', 'Missing Photo', student.id)
+        } else if (matches.length > 1) {
+          // Multiple extensions found (e.g. 001.jpg and 001.png)
+          updateStudent.run(null, 'failed', `Conflict: Multiple photos found (${matches.join(', ')})`, student.id)
+        } else {
+          // Exactly one match
+          updateStudent.run(path.join(dirPath, matches[0]), 'pending', null, student.id)
           matchedCount++
         }
       }
@@ -122,10 +137,104 @@ export function setupIpc() {
     return matchedCount
   })
 
+  ipcMain.handle('export-exceptions', async (_event, batchId) => {
+    const students = db.prepare("SELECT admNo, exceptionReason FROM students WHERE batchId = ? AND printStatus = 'failed'").all(batchId) as any[]
+
+    if (students.length === 0) return null
+
+    const worksheet = XLSX.utils.json_to_sheet(students)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Exceptions')
+
+    const savePath = dialog.showSaveDialogSync({
+      title: 'Export Exception Report',
+      defaultPath: `Exception_Report_Batch_${batchId}.xlsx`,
+      filters: [{ name: 'Excel Files', extensions: ['xlsx'] }]
+    })
+
+    if (savePath) {
+      XLSX.writeFile(workbook, savePath)
+      return savePath
+    }
+    return null
+  })
+
   // Read restricted to specific photo paths
   ipcMain.handle('read-photo', async (_event, photoPath) => {
     // In a real app, verify that photoPath is within allowed directories
     if (!fs.existsSync(photoPath)) return null
     return fs.readFileSync(photoPath).toString('base64')
+  })
+
+  ipcMain.handle('export-batch-wid', async (_event, batchId) => {
+    const batch = db.prepare('SELECT * FROM batches WHERE id = ?').get(batchId) as any
+    const students = db.prepare('SELECT * FROM students WHERE batchId = ?').all(batchId) as any[]
+
+    if (!batch) return null
+
+    const bundle = {
+      version: '1.0.0',
+      batch: { name: batch.name },
+      students: students.map(s => {
+        let photoBase64 = null
+        if (s.photoPath && fs.existsSync(s.photoPath)) {
+          photoBase64 = fs.readFileSync(s.photoPath).toString('base64')
+        }
+        return {
+          admNo: s.admNo,
+          data: JSON.parse(s.data),
+          photoBase64,
+          printStatus: s.printStatus
+        }
+      })
+    }
+
+    const savePath = dialog.showSaveDialogSync({
+      title: 'Export WhizPoint ID Batch',
+      defaultPath: `${batch.name.replace(/\s+/g, '_')}.wid`,
+      filters: [{ name: 'WhizPoint ID Files', extensions: ['wid'] }]
+    })
+
+    if (savePath) {
+      fs.writeFileSync(savePath, JSON.stringify(bundle))
+      return savePath
+    }
+    return null
+  })
+
+  ipcMain.handle('import-batch-wid', async () => {
+    const result = await dialog.showOpenDialog({
+      filters: [{ name: 'WhizPoint ID Files', extensions: ['wid'] }]
+    })
+
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const content = fs.readFileSync(result.filePaths[0], 'utf-8')
+    const bundle = JSON.parse(content)
+
+    const batchName = `${bundle.batch.name} (Imported)`
+    const batchResult = db.prepare('INSERT INTO batches (name) VALUES (?)').run(batchName)
+    const batchId = batchResult.lastInsertRowid
+
+    // Create a local storage for photos
+    const photoDir = path.join(app.getPath('userData'), 'imported_photos', batchId.toString())
+    if (!fs.existsSync(photoDir)) fs.mkdirSync(photoDir, { recursive: true })
+
+    const insertStudent = db.prepare(`
+      INSERT INTO students (batchId, admNo, data, photoPath, printStatus) VALUES (?, ?, ?, ?, ?)
+    `)
+
+    db.transaction(() => {
+      for (const s of bundle.students) {
+        let photoPath = null
+        if (s.photoBase64) {
+          photoPath = path.join(photoDir, `${s.admNo}.jpg`)
+          fs.writeFileSync(photoPath, Buffer.from(s.photoBase64, 'base64'))
+        }
+        insertStudent.run(batchId, s.admNo, JSON.stringify(s.data), photoPath, s.printStatus)
+      }
+    })()
+
+    return { batchId, count: bundle.students.length }
   })
 }
