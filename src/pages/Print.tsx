@@ -90,7 +90,7 @@ const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
       const p1Data = photo1 ? `data:image/jpeg;base64,${photo1}` : undefined
       const p2Data = photo2 ? `data:image/jpeg;base64,${photo2}` : undefined
 
-      const sheet = await renderA4Sheet(student1.data, student2?.data, layout.content, profile, p1Data, p2Data)
+      const sheet = await renderA4Sheet(student1, student2, layout.content, profile, p1Data, p2Data)
       setPreviewUrl(sheet.toDataURL())
     } else {
       const student = students[currentIndex]
@@ -99,7 +99,8 @@ const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
       const photo = student.photoPath ? await window.ipcRenderer.invoke('read-photo', student.photoPath) : null
       const pData = photo ? `data:image/jpeg;base64,${photo}` : undefined
 
-      const card = await renderCard(layout.content, student.data, pData)
+      const adj = student.data._adjustments || { zoom: 1, x: 0, y: 0 }
+      const card = await renderCard(layout.content, student.data, pData, adj)
       setSinglePreviewUrl(card.toDataURL())
     }
   }
@@ -144,7 +145,7 @@ const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
         const p1Data = photo1 ? `data:image/jpeg;base64,${photo1}` : undefined
         const p2Data = photo2 ? `data:image/jpeg;base64,${photo2}` : undefined
 
-        const sheet = await renderA4Sheet(s1.data, s2?.data, layout.content, profile, p1Data, p2Data)
+        const sheet = await renderA4Sheet(s1, s2, layout.content, profile, p1Data, p2Data)
         sheets.push(sheet)
       }
 

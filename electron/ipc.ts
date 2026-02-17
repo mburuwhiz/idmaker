@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from 'electron'
+import { ipcMain, dialog, app } from 'electron'
 import db from './db.js'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -185,8 +185,29 @@ export function setupIpc() {
   // Read restricted to specific photo paths
   ipcMain.handle('read-photo', async (_event, photoPath) => {
     // In a real app, verify that photoPath is within allowed directories
-    if (!fs.existsSync(photoPath)) return null
+    if (!photoPath || !fs.existsSync(photoPath)) return null
     return fs.readFileSync(photoPath).toString('base64')
+  })
+
+  ipcMain.on('read-photo-sync', (event, photoPath) => {
+    if (!photoPath || !fs.existsSync(photoPath)) {
+      event.returnValue = null
+      return
+    }
+    event.returnValue = fs.readFileSync(photoPath).toString('base64')
+  })
+
+  ipcMain.handle('open-file', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png'] }]
+    })
+    if (result.canceled) return null
+    return result.filePaths[0]
+  })
+
+  ipcMain.handle('update-student-photo', (_event, id, photoPath) => {
+    return db.prepare('UPDATE students SET photoPath = ? WHERE id = ?').run(photoPath, id)
   })
 
   ipcMain.handle('export-batch-wid', async (_event, batchId) => {

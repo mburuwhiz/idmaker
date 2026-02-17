@@ -12,7 +12,12 @@ import {
   A4_HEIGHT_MM
 } from './units'
 
-export async function renderCard(layoutJson: string, studentData: any, photoData?: string): Promise<HTMLCanvasElement> {
+export async function renderCard(
+  layoutJson: string,
+  studentData: any,
+  photoData?: string,
+  adjustments: { zoom: number, x: number, y: number } = { zoom: 1, x: 0, y: 0 }
+): Promise<HTMLCanvasElement> {
   const canvasElement = document.createElement('canvas')
   const canvas = new fabric.StaticCanvas(canvasElement, {
     width: CR80_WIDTH_PX,
@@ -48,12 +53,29 @@ export async function renderCard(layoutJson: string, studentData: any, photoData
       const processedData = await processPhoto(photoData, obj.width, obj.height)
       const img = await fabric.Image.fromURL(processedData)
 
+      // Apply manual adjustments
+      const { zoom, x, y } = adjustments
+
+      // Calculate scaled dimensions
+      const sw = obj.width * zoom
+      const sh = obj.height * zoom
+
+      // Calculate offsets (center-based scaling)
+      const ox = (obj.width - sw) / 2 + (x || 0)
+      const oy = (obj.height - sh) / 2 + (y || 0)
+
       img.set({
-        left: obj.left,
-        top: obj.top,
-        width: obj.width,
-        height: obj.height,
-        // No extra scaling needed as processPhoto returns exact size
+        left: obj.left + ox,
+        top: obj.top + oy,
+        width: sw,
+        height: sh,
+        clipPath: new fabric.Rect({
+            left: obj.left,
+            top: obj.top,
+            width: obj.width,
+            height: obj.height,
+            absolutePositioned: true
+        })
       })
       canvas.remove(obj)
       canvas.add(img)
@@ -92,8 +114,11 @@ export async function renderA4Sheet(
 
   const { offsetX, offsetY, slot2YOffset, scaleX, scaleY } = profile
 
-  const card1 = await renderCard(layoutJson, student1, photo1)
-  const card2 = student2 ? await renderCard(layoutJson, student2, photo2) : null
+  const adj1 = student1.data._adjustments || { zoom: 1, x: 0, y: 0 }
+  const card1 = await renderCard(layoutJson, student1.data, photo1, adj1)
+
+  const adj2 = student2?.data?._adjustments || { zoom: 1, x: 0, y: 0 }
+  const card2 = student2 ? await renderCard(layoutJson, student2.data, photo2, adj2) : null
 
   // Slot 1
   const s1x = mmToPx(SLOT1_X_MM + offsetX)

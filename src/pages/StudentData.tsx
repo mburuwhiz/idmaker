@@ -33,7 +33,13 @@ const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
 
   const startEdit = (student: Student) => {
     setEditingId(student.id)
-    setEditData(JSON.stringify(student.data, null, 2))
+    setEditData(JSON.stringify(student.data))
+  }
+
+  const updateEditField = (key: string, value: string) => {
+    const data = JSON.parse(editData)
+    data[key] = value
+    setEditData(JSON.stringify(data))
   }
 
   const saveEdit = async () => {
@@ -43,8 +49,9 @@ const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
       await window.ipcRenderer.invoke('update-student', editingId, parsedData, 'pending')
       setEditingId(null)
       loadStudents()
+      toast.success('Record updated')
     } catch (e) {
-      alert('Invalid JSON data')
+      toast.error('Failed to update record')
     }
   }
 
@@ -123,13 +130,21 @@ const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
                 <td className="px-6 py-4 font-mono">{student.admNo}</td>
                 <td className="px-6 py-4">
                   {editingId === student.id ? (
-                    <textarea
-                      value={editData}
-                      onChange={(e) => setEditData(e.target.value)}
-                      className="w-full border rounded p-1 text-xs font-mono h-24"
-                    />
+                    <div className="space-y-2">
+                       {Object.entries(JSON.parse(editData)).map(([key, value]) => (
+                         <div key={key} className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">{key}</label>
+                            <input
+                              type="text"
+                              value={String(value)}
+                              onChange={(e) => updateEditField(key, e.target.value)}
+                              className="w-full border rounded px-2 py-1 text-xs"
+                            />
+                         </div>
+                       ))}
+                    </div>
                   ) : (
-                    <span>{student.data.NAME || 'N/A'}</span>
+                    <span className="font-medium text-gray-900">{student.data.NAME || 'N/A'}</span>
                   )}
                 </td>
                 <td className="px-6 py-4">

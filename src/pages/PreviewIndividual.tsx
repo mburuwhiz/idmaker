@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, X, Printer, Download, User, Info, AlertCircle, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Printer, Download, User, Info, AlertCircle, ChevronsLeft, ChevronsRight, Edit, Save, Camera, Plus, Minus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { renderCard } from '../utils/printService'
 
@@ -15,6 +15,8 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
   const [selectedLayoutId, setSelectedLayoutId] = useState<number | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editData, setEditData] = useState<any>(null)
 
   useEffect(() => {
     loadData()
@@ -59,7 +61,10 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
     const photo = student.photoPath ? await window.ipcRenderer.invoke('read-photo', student.photoPath) : null
     const pData = photo ? `data:image/jpeg;base64,${photo}` : undefined
 
-    const card = await renderCard(layout.content, student.data, pData)
+    // Apply adjustments if they exist in data
+    const adjustments = student.data._adjustments || { zoom: 1, x: 0, y: 0 }
+
+    const card = await renderCard(layout.content, student.data, pData, adjustments)
     setPreviewUrl(card.toDataURL())
   }
 
@@ -75,6 +80,34 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
   }
 
   const currentStudent = students[currentIndex]
+
+  const handleSaveEdit = async () => {
+    try {
+        await window.ipcRenderer.invoke('update-student', currentStudent.id, editData, 'pending')
+        toast.success('Record updated')
+        setIsEditing(false)
+        loadData()
+    } catch (e) {
+        toast.error('Failed to update record')
+    }
+  }
+
+  const changePhoto = async () => {
+    const res = await window.ipcRenderer.invoke('open-file')
+    if (res) {
+        const newData = { ...editData, _manualPhoto: res }
+        setEditData(newData)
+        // We also need to update the student in DB to point to this new photo path
+        await window.ipcRenderer.invoke('update-student-photo', currentStudent.id, res)
+        toast.success('Photo updated')
+    }
+  }
+
+  const updateAdjustment = (key: string, val: number) => {
+    const adjustments = editData._adjustments || { zoom: 1, x: 0, y: 0 }
+    const newAdjustments = { ...adjustments, [key]: val }
+    setEditData({ ...editData, _adjustments: newAdjustments })
+  }
 
   return (
     <div className="fixed inset-0 bg-slate-950 flex flex-col z-[100] animate-in fade-in duration-300">
@@ -146,6 +179,16 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                    </div>
                    <p className="text-xs leading-relaxed font-medium">Use this view for details confirmation. All details shown here are exactly what will be printed.</p>
                 </div>
+
+                <button
+                    onClick={() => {
+                        setEditData({ ...currentStudent.data })
+                        setIsEditing(true)
+                    }}
+                    className="w-full flex items-center justify-center gap-3 bg-white/10 hover:bg-white/20 text-white p-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all"
+                >
+                    <Edit size={20} /> Edit Record Details
+                </button>
              </div>
            ) : (
              <div className="text-slate-500 italic text-center py-20">No record selected</div>
@@ -230,6 +273,117 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
            </div>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {isEditing && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-8">
+              <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                  <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                          <div className="bg-blue-600 p-2 rounded-xl">
+                              <Edit className="text-white" size={20} />
+                          </div>
+                          <div>
+                              <h3 className="text-white font-black uppercase tracking-tight">Edit Record Details</h3>
+                              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Adjust data and photo for this card</p>
+                          </div>
+                      </div>
+                      <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white transition">
+                          <X size={24} />
+                      </button>
+                  </div>
+
+                  <div className="flex-1 overflow-auto p-8 grid grid-cols-2 gap-8">
+                      <div className="space-y-6">
+                          <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">Text Information</div>
+                          {Object.entries(editData).filter(([k]) => !k.startsWith('_')).map(([key, value]) => (
+                              <div key={key} className="space-y-2">
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">{key}</label>
+                                  <input
+                                      type="text"
+                                      value={String(value)}
+                                      onChange={(e) => setEditData({ ...editData, [key]: e.target.value })}
+                                      className="w-full bg-slate-800 border-none rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                  />
+                              </div>
+                          ))}
+                      </div>
+
+                      <div className="space-y-8">
+                          <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Photo Adjustment</div>
+
+                          <div className="aspect-square bg-slate-800 rounded-3xl overflow-hidden border border-white/5 relative group">
+                              {currentStudent.photoPath ? (
+                                  <img
+                                    src={`data:image/jpeg;base64,${window.ipcRenderer.sendSync('read-photo-sync', currentStudent.photoPath)}`}
+                                    className="w-full h-full object-cover opacity-50"
+                                  />
+                              ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                      <Camera size={48} />
+                                  </div>
+                              )}
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={changePhoto}
+                                    className="bg-white text-black px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl"
+                                  >
+                                      Change Photo
+                                  </button>
+                              </div>
+                          </div>
+
+                          <div className="space-y-6">
+                              <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase">Zoom Level</span>
+                                  <div className="flex items-center gap-4">
+                                      <button onClick={() => updateAdjustment('zoom', Math.max(0.1, (editData._adjustments?.zoom || 1) - 0.1))} className="p-2 bg-slate-800 rounded-lg text-white hover:bg-slate-700"><Minus size={14}/></button>
+                                      <span className="text-white font-mono text-xs w-12 text-center">{((editData._adjustments?.zoom || 1) * 100).toFixed(0)}%</span>
+                                      <button onClick={() => updateAdjustment('zoom', (editData._adjustments?.zoom || 1) + 0.1)} className="p-2 bg-slate-800 rounded-lg text-white hover:bg-slate-700"><Plus size={14}/></button>
+                                  </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                      <span className="text-[10px] font-bold text-slate-500 uppercase ml-1">Offset X</span>
+                                      <input
+                                        type="number"
+                                        value={editData._adjustments?.x || 0}
+                                        onChange={(e) => updateAdjustment('x', Number(e.target.value))}
+                                        className="w-full bg-slate-800 border-none rounded-xl px-4 py-2 text-white text-xs"
+                                      />
+                                  </div>
+                                  <div className="space-y-2">
+                                      <span className="text-[10px] font-bold text-slate-500 uppercase ml-1">Offset Y</span>
+                                      <input
+                                        type="number"
+                                        value={editData._adjustments?.y || 0}
+                                        onChange={(e) => updateAdjustment('y', Number(e.target.value))}
+                                        className="w-full bg-slate-800 border-none rounded-xl px-4 py-2 text-white text-xs"
+                                      />
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="p-8 border-t border-white/5 flex gap-4">
+                      <button
+                        onClick={handleSaveEdit}
+                        className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-3"
+                      >
+                          <Save size={18} /> Save Changes
+                      </button>
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className="px-8 bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all"
+                      >
+                          Cancel
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   )
 }
