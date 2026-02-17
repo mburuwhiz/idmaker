@@ -25,12 +25,64 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         height: WORKSPACE_SIZE,
         backgroundColor: '#0f172a', // Dark workspace background
         preserveObjectStacking: true,
+        selection: true,
       })
 
       // Center the CR80 card area in the large workspace
       const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
       const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
       canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
+
+      // Zooming with Alt + Wheel
+      canvas.on('mouse:wheel', function(this: fabric.Canvas, opt) {
+        if (!opt.e.altKey) return;
+        const delta = opt.e.deltaY;
+        let zoom = this.getZoom();
+        zoom *= 0.999 ** delta;
+        if (zoom > 10) zoom = 10;
+        if (zoom < 0.1) zoom = 0.1;
+        this.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom);
+        opt.e.preventDefault();
+        opt.e.stopPropagation();
+      });
+
+      // Panning with Alt + Drag or Middle Click
+      let isDragging = false;
+      let lastPosX: number, lastPosY: number;
+
+      canvas.on('mouse:down', function(this: fabric.Canvas, opt) {
+        const evt = opt.e as MouseEvent;
+        // Alt key or Middle mouse button
+        if (evt.altKey === true || (evt as any).button === 1) {
+          isDragging = true;
+          this.selection = false;
+          lastPosX = evt.clientX;
+          lastPosY = evt.clientY;
+          if (opt.e.preventDefault) opt.e.preventDefault();
+        }
+      });
+
+      canvas.on('mouse:move', function(this: fabric.Canvas, opt) {
+        if (isDragging) {
+          const e = opt.e as MouseEvent;
+          const vpt = this.viewportTransform;
+          if (vpt) {
+            vpt[4] += e.clientX - lastPosX;
+            vpt[5] += e.clientY - lastPosY;
+            this.requestRenderAll();
+          }
+          lastPosX = e.clientX;
+          lastPosY = e.clientY;
+        }
+      });
+
+      canvas.on('mouse:up', function(this: fabric.Canvas) {
+        if (isDragging) {
+          this.setViewportTransform(this.viewportTransform!);
+          isDragging = false;
+          this.selection = true;
+        }
+      });
 
       // Ensure guides function
       const ensureGuides = () => {

@@ -120,6 +120,10 @@ export function setupIpc() {
 
       db.transaction(() => {
         for (const row of data as any[]) {
+          const keys = Object.keys(row)
+          // Robust ADM_NO detection
+          const admKey = keys.find(k => ['ADM_NO', 'ADM', 'ADMNO', 'ADMISSION', 'STUDENT_ID'].includes(k.toUpperCase()))
+
           // Process dates to DD/MM/YYYY string format
           for (const key in row) {
             const val = row[key]
@@ -129,31 +133,27 @@ export function setupIpc() {
               const month = String(d.getMonth() + 1).padStart(2, '0')
               const year = d.getFullYear()
               row[key] = `${day}/${month}/${year}`
-            } else if (typeof val === 'number' && val > 30000 && val < 60000) {
-              // Potential Excel date serial number (range approx 1982 to 2064)
-              // Use XLSX.SSF to format if possible, otherwise it stays a number
-              try {
-                // Excel dates are floating point; if it has a decimal it might be a date-time
-                // But the user specifically mentioned 01/12/2000 appearing as 38362
-                const date = XLSX.SSF.parse_date_code(val)
-                if (date && date.y > 1900) {
-                  const day = String(date.d).padStart(2, '0')
-                  const month = String(date.m).padStart(2, '0')
-                  const year = date.y
-                  row[key] = `${day}/${month}/${year}`
+            } else if (key !== admKey) {
+              // Handle potential Excel date serial numbers for non-admission fields
+              const numVal = Number(val)
+              if (!isNaN(numVal) && numVal > 20000 && numVal < 80000) {
+                try {
+                  const date = XLSX.SSF.parse_date_code(numVal)
+                  if (date && date.y > 1900 && date.y < 2100) {
+                    const day = String(date.d).padStart(2, '0')
+                    const month = String(date.m).padStart(2, '0')
+                    const year = date.y
+                    row[key] = `${day}/${month}/${year}`
+                  }
+                } catch (e) {
+                  // Not a valid date format, keep original
                 }
-              } catch (e) {
-                // Not a valid date format, ignore
               }
             }
           }
 
-          // Robust ADM_NO detection
-          const keys = Object.keys(row)
-          const admKey = keys.find(k => ['ADM_NO', 'ADM', 'ADMNO', 'ADMISSION', 'STUDENT_ID'].includes(k.toUpperCase()))
           // Trim admission number for consistency
           const admNo = (admKey ? row[admKey] : `TEMP-${Math.random().toString(36).substr(2, 5)}`).toString().trim()
-
           insertStudent.run(batchId, admNo, JSON.stringify(row))
         }
       })()

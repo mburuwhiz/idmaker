@@ -32,6 +32,7 @@ const Design: React.FC = () => {
   const [layoutName, setLayoutName] = useState('New Layout')
   const [savedLayouts, setSavedLayouts] = useState<any[]>([])
   const [showTemplateManager, setShowTemplateManager] = useState(false)
+  const clipboard = useRef<any>(null)
 
   useEffect(() => {
     loadLayouts()
@@ -54,20 +55,23 @@ const Design: React.FC = () => {
     setHistoryIndex(prev => Math.min(prev + 1, 49))
   }
 
+  const restoreWorkspace = (c: any) => {
+    if (!c) return;
+    const WORKSPACE_SIZE = 3000;
+    c.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE });
+    const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2;
+    const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2;
+    c.setViewportTransform([1, 0, 0, 1, offsetX, offsetY]);
+    if (c.ensureGuides) c.ensureGuides();
+    c.renderAll();
+  }
+
   const undo = async () => {
     if (historyIndex > 0 && canvas) {
       isRedoing.current = true
       const prevState = history[historyIndex - 1]
       await canvas.loadFromJSON(prevState)
-
-      const WORKSPACE_SIZE = 3000
-      canvas.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE })
-      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
-      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
-      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
-
-      if (canvas.ensureGuides) canvas.ensureGuides()
-      canvas.renderAll()
+      restoreWorkspace(canvas)
       setHistoryIndex(historyIndex - 1)
       isRedoing.current = false
     }
@@ -78,15 +82,7 @@ const Design: React.FC = () => {
       isRedoing.current = true
       const nextState = history[historyIndex + 1]
       await canvas.loadFromJSON(nextState)
-
-      const WORKSPACE_SIZE = 3000
-      canvas.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE })
-      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
-      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
-      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
-
-      if (canvas.ensureGuides) canvas.ensureGuides()
-      canvas.renderAll()
+      restoreWorkspace(canvas)
       setHistoryIndex(historyIndex + 1)
       isRedoing.current = false
     }
@@ -149,15 +145,8 @@ const Design: React.FC = () => {
 
     if (draft && canvas.getObjects().filter((obj: any) => !obj.isGuide).length === 0) {
       canvas.loadFromJSON(draft).then(() => {
-          const WORKSPACE_SIZE = 3000
-          canvas.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE })
-          const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
-          const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
-          canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
-
-          if (canvas.ensureGuides) canvas.ensureGuides()
+          restoreWorkspace(canvas)
           if (savedName) setLayoutName(savedName)
-          canvas.renderAll()
           setTimeout(handleZoomFit, 100)
       })
     }
@@ -179,18 +168,7 @@ const Design: React.FC = () => {
       // Explicitly clear before loading
       canvas.clear()
       await canvas.loadFromJSON(layout.content)
-
-      // Restore workspace dimensions and viewport transform after loading
-      const WORKSPACE_SIZE = 3000
-      canvas.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE })
-      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
-      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
-      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
-
-      // Re-add guides after loading JSON as loadFromJSON clears everything
-      if (canvas.ensureGuides) {
-        canvas.ensureGuides()
-      }
+      restoreWorkspace(canvas)
 
       setLayoutName(layout.name)
       setShowTemplateManager(false)
@@ -237,9 +215,44 @@ const Design: React.FC = () => {
             e.preventDefault()
             duplicateSelected()
         } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-            // Native copy works for text, but for fabric objects we might want custom
+            const activeObject = canvas.getActiveObject()
+            if (activeObject) {
+              activeObject.clone([
+                'isPlaceholder', 'isPhotoPlaceholder', 'isPhotoFrame', 'isPhotoText',
+                'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'underline',
+                'stroke', 'fill', 'strokeWidth'
+              ]).then((cloned: any) => {
+                clipboard.current = cloned
+              })
+            }
         } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-            // Native paste
+            if (clipboard.current) {
+                clipboard.current.clone([
+                    'isPlaceholder', 'isPhotoPlaceholder', 'isPhotoFrame', 'isPhotoText',
+                    'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'underline',
+                    'stroke', 'fill', 'strokeWidth'
+                ]).then((clonedObj: any) => {
+                    canvas.discardActiveObject()
+                    clonedObj.set({
+                        left: clonedObj.left + 20,
+                        top: clonedObj.top + 20,
+                        evented: true,
+                    })
+                    if (clonedObj.type === 'activeSelection') {
+                        clonedObj.canvas = canvas
+                        clonedObj.forEachObject((obj: any) => {
+                            canvas.add(obj)
+                        })
+                        clonedObj.setCoords()
+                    } else {
+                        canvas.add(clonedObj)
+                    }
+                    clipboard.current.top += 20
+                    clipboard.current.left += 20
+                    canvas.setActiveObject(clonedObj)
+                    canvas.requestRenderAll()
+                })
+            }
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
             // Only delete if not in an input/textarea
             if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
@@ -284,8 +297,14 @@ const Design: React.FC = () => {
       toast.error('Canvas not initialized');
       return;
     }
-    // Force standard dimensions before saving to ensure consistency
-    canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+
+    // Store current state for restoration
+    const originalDim = { width: canvas.width, height: canvas.height };
+    const originalVpt = canvas.viewportTransform ? [...canvas.viewportTransform] : [1, 0, 0, 1, 0, 0];
+
+    // Force standard dimensions and reset viewport before saving to ensure 0,0 origin consistency
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX });
 
     const loadToast = toast.loading('Saving layout...');
     try {
@@ -305,6 +324,11 @@ const Design: React.FC = () => {
     } catch (e) {
       console.error('Save failed:', e);
       toast.error('Failed to save layout', { id: loadToast });
+    } finally {
+      // Restore workspace dimensions and centered viewport
+      canvas.setDimensions(originalDim);
+      canvas.setViewportTransform(originalVpt);
+      canvas.renderAll();
     }
   }
 
@@ -406,40 +430,42 @@ const Design: React.FC = () => {
 
   return (
     <div className="flex h-screen flex-col bg-slate-50 overflow-hidden">
-      {/* Modern Compact Toolbar */}
-      <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-30 flex-wrap gap-y-2">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 pr-2 border-r">
-             <LayoutTemplate className="text-blue-600" size={20} />
-             <div className="hidden sm:block">
-                <h1 className="text-[11px] font-black uppercase tracking-tighter text-slate-800 leading-none">ID Designer</h1>
-                <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Professional</p>
+      {/* Modern Compact Toolbar - Highly Responsive */}
+      <div className="bg-white border-b px-2 md:px-4 py-1.5 flex items-center justify-between shadow-sm z-30 flex-wrap gap-y-1.5">
+        <div className="flex items-center gap-1.5 md:gap-3 flex-wrap">
+          <div className="flex items-center gap-2 pr-2 border-r hidden sm:flex">
+             <LayoutTemplate className="text-blue-600" size={18} />
+             <div>
+                <h1 className="text-[10px] font-black uppercase tracking-tighter text-slate-800 leading-none">ID Designer</h1>
+                <p className="text-[6px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Professional</p>
              </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
-             <button onClick={handleNew} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-600 transition-all active:scale-95" title="New Layout"><FileUp size={16} className="rotate-180" /></button>
-             <div className="w-px h-4 bg-slate-200 mx-0.5" />
-             <button onClick={undo} disabled={historyIndex <= 0} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-600 disabled:opacity-30 transition-all" title="Undo (Ctrl+Z)"><Undo2 size={16} /></button>
-             <button onClick={redo} disabled={historyIndex >= history.length - 1} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-600 disabled:opacity-30 transition-all" title="Redo (Ctrl+Y)"><Redo2 size={16} /></button>
-             <button onClick={duplicateSelected} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-600 transition-all" title="Duplicate (Ctrl+D)"><Copy size={16} /></button>
+          {/* History Group */}
+          <div className="flex items-center gap-0.5 bg-slate-50 p-0.5 rounded-lg border border-slate-200">
+             <button onClick={handleNew} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all active:scale-95" title="New Layout"><FileUp size={14} className="rotate-180" /></button>
+             <div className="w-px h-3 bg-slate-200 mx-0.5" />
+             <button onClick={undo} disabled={historyIndex <= 0} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 disabled:opacity-30 transition-all" title="Undo (Ctrl+Z)"><Undo2 size={14} /></button>
+             <button onClick={redo} disabled={historyIndex >= history.length - 1} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 disabled:opacity-30 transition-all" title="Redo (Ctrl+Y)"><Redo2 size={14} /></button>
+             <button onClick={duplicateSelected} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all" title="Duplicate (Ctrl+D)"><Copy size={14} /></button>
           </div>
 
-          <div className="flex items-center bg-slate-50 rounded-xl p-1 gap-0.5 border border-slate-200">
-            <button onClick={() => addText()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-700 flex items-center gap-1.5 transition-all group" title="Add Text">
-              <Type size={16} className="group-hover:text-blue-600" /> <span className="text-[9px] font-black uppercase hidden lg:inline">Text</span>
+          {/* Element Creation Group */}
+          <div className="flex items-center bg-slate-50 rounded-lg p-0.5 gap-0.5 border border-slate-200">
+            <button onClick={() => addText()} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-700 flex items-center gap-1 transition-all group" title="Add Text">
+              <Type size={14} className="group-hover:text-blue-600" /> <span className="text-[8px] font-black uppercase hidden lg:inline">Text</span>
             </button>
-            <button onClick={() => addPlaceholder()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-blue-600 flex items-center gap-1.5 transition-all" title="Add Variable Field">
-              <Tags size={16} /> <span className="text-[9px] font-black uppercase hidden lg:inline">Field</span>
+            <button onClick={() => addPlaceholder()} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-blue-600 flex items-center gap-1 transition-all" title="Add Variable Field">
+              <Tags size={14} /> <span className="text-[8px] font-black uppercase hidden lg:inline">Field</span>
             </button>
-            <button onClick={() => addPhotoFrame()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-indigo-600 flex items-center gap-1.5 transition-all" title="Add Photo Slot">
-              <UserSquare size={16} /> <span className="text-[9px] font-black uppercase hidden lg:inline">Photo</span>
+            <button onClick={() => addPhotoFrame()} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-indigo-600 flex items-center gap-1 transition-all" title="Add Photo Slot">
+              <UserSquare size={14} /> <span className="text-[8px] font-black uppercase hidden lg:inline">Photo</span>
             </button>
-            <div className="w-px h-4 bg-slate-200 mx-0.5" />
-            <button onClick={() => addRect()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-700 transition-all" title="Rectangle"><Square size={16} /></button>
-            <button onClick={() => addLine()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-700 transition-all" title="Line"><Minimize2 size={16} className="rotate-45" /></button>
-            <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-700 transition-all" title="Upload Image">
-              <ImageIcon size={16} />
+            <div className="w-px h-3 bg-slate-200 mx-0.5" />
+            <button onClick={() => addRect()} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-700 transition-all" title="Rectangle"><Square size={14} /></button>
+            <button onClick={() => addLine()} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-700 transition-all" title="Line"><Minimize2 size={14} className="rotate-45" /></button>
+            <button onClick={() => fileInputRef.current?.click()} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-700 transition-all" title="Upload Image">
+              <ImageIcon size={14} />
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
                 const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = (f) => { if (f.target?.result) addImage(f.target.result as string) }; reader.readAsDataURL(file) }
               }} />
@@ -448,8 +474,9 @@ const Design: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5 border border-slate-200">
-             <button onClick={handleZoomFit} className="px-2 py-1.5 hover:bg-white rounded-lg text-slate-700 text-[9px] font-black uppercase transition-all flex items-center gap-1 shadow-none hover:shadow-sm"><Maximize size={12} /> Fit</button>
+          {/* Zoom Info - Compact */}
+          <div className="hidden md:flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+             <button onClick={handleZoomFit} className="px-2 py-1 hover:bg-white rounded-md text-slate-700 text-[8px] font-black uppercase transition-all flex items-center gap-1 shadow-none hover:shadow-sm"><Maximize size={10} /> Reset View</button>
           </div>
 
           <div className="flex items-center gap-1">
@@ -457,20 +484,20 @@ const Design: React.FC = () => {
               type="text"
               value={layoutName}
               onChange={(e) => setLayoutName(e.target.value)}
-              className="font-bold text-slate-800 border border-slate-200 focus:ring-2 focus:ring-blue-500 w-32 bg-slate-50 rounded-lg px-2 py-1.5 h-8 text-[11px] transition-all"
+              className="font-bold text-slate-800 border border-slate-200 focus:ring-2 focus:ring-blue-500 w-24 md:w-32 bg-slate-50 rounded-lg px-2 py-1 h-7 text-[10px] transition-all"
               placeholder="Name..."
             />
             <button
               onClick={() => setShowTemplateManager(true)}
               className="p-1.5 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 bg-white transition-all shadow-sm"
-              title="Templates"
+              title="Templates Library"
             >
-              <Settings2 size={16} />
+              <Settings2 size={14} />
             </button>
           </div>
 
-          <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-black uppercase tracking-wider text-[10px] hover:bg-blue-700 transition shadow-lg shadow-blue-200 active:scale-95">
-            <Save size={16} /> Save
+          <button onClick={handleSave} className="bg-blue-600 text-white px-3 md:px-4 py-1.5 rounded-lg flex items-center gap-2 font-black uppercase tracking-wider text-[9px] hover:bg-blue-700 transition shadow-lg shadow-blue-200 active:scale-95">
+            <Save size={14} className="hidden xs:block" /> Save
           </button>
         </div>
       </div>
@@ -703,27 +730,27 @@ const Design: React.FC = () => {
                  </button>
               </div>
 
-              <div className="flex-1 overflow-auto p-8 bg-white">
+              <div className="flex-1 overflow-auto p-4 md:p-8 bg-white">
                  {savedLayouts.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                        {savedLayouts.map(l => (
-                          <div key={l.id} className="group border-2 border-slate-100 hover:border-blue-600 rounded-[2rem] p-6 transition-all hover:shadow-xl hover:shadow-blue-100 flex flex-col justify-between bg-slate-50/30 hover:bg-white relative overflow-hidden">
-                             <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                <button onClick={() => handleDownloadLayout(l)} className="p-2.5 bg-white shadow-md border rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Export JSON"><Download size={20} /></button>
-                                <button onClick={() => handleRenameLayout(l)} className="p-2.5 bg-white shadow-md border rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Rename"><Pencil size={20} /></button>
-                                <button onClick={() => handleDeleteLayout(l.id)} className="p-2.5 bg-white shadow-md border rounded-xl text-red-400 hover:text-red-600 transition-all" title="Delete"><Trash size={20} /></button>
+                          <div key={l.id} className="group border-2 border-slate-100 hover:border-blue-600 rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-6 transition-all hover:shadow-xl hover:shadow-blue-100 flex flex-col justify-between bg-slate-50/30 hover:bg-white relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-4 md:p-8 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1.5 md:gap-2">
+                                <button onClick={() => handleDownloadLayout(l)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Export JSON"><Download size={18} /></button>
+                                <button onClick={() => handleRenameLayout(l)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Rename"><Pencil size={18} /></button>
+                                <button onClick={() => handleDeleteLayout(l.id)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-red-400 hover:text-red-600 transition-all" title="Delete"><Trash size={18} /></button>
                              </div>
 
                              <div>
-                                <div className="p-4 bg-white rounded-2xl shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all w-fit mb-6 border border-slate-100 group-hover:border-blue-500">
-                                   <LayoutTemplate size={32} />
+                                <div className="p-3 md:p-4 bg-white rounded-xl md:rounded-2xl shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all w-fit mb-4 md:mb-6 border border-slate-100 group-hover:border-blue-500">
+                                   <LayoutTemplate size={24} />
                                 </div>
-                                <h3 className="font-black text-slate-800 text-xl uppercase group-hover:text-blue-600 transition-colors">{l.name}</h3>
-                                <p className="text-[11px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">Standard PVC • CR80 Landscape</p>
+                                <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase group-hover:text-blue-600 transition-colors truncate pr-20">{l.name}</h3>
+                                <p className="text-[10px] md:text-[11px] text-slate-400 font-black uppercase tracking-[0.15em] md:tracking-[0.2em] mt-1 md:mt-2">Standard PVC • CR80</p>
                              </div>
                              <button
                                 onClick={() => handleLoad(l)}
-                                className="mt-10 w-full py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] text-slate-500 group-hover:bg-blue-600 group-hover:border-blue-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-xl group-hover:shadow-blue-200"
+                                className="mt-6 md:mt-10 w-full py-3 md:py-4 bg-white border-2 border-slate-200 rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-[0.15em] md:tracking-[0.2em] text-slate-500 group-hover:bg-blue-600 group-hover:border-blue-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-xl group-hover:shadow-blue-200"
                              >
                                 Load Project
                              </button>

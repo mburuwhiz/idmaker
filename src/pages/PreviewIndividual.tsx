@@ -214,12 +214,12 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
         </div>
 
         {/* Center Preview Panel */}
-        <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-12 relative overflow-hidden">
+        <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-6 md:p-12 relative overflow-hidden">
            {/* Backdrop Glow */}
            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
 
            {previewUrl ? (
-             <div className="relative group transition-all duration-700 hover:scale-[1.02]">
+             <div className="relative group transition-all duration-700 hover:scale-[1.02] mb-20 md:mb-0">
                 <img
                     src={previewUrl}
                     className="max-h-full shadow-[0_80px_150px_rgba(0,0,0,0.8)] border-[12px] border-white/5 rounded-3xl"
@@ -395,7 +395,7 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                       </div>
                   </div>
 
-                  <div className="p-6 md:p-8 border-t border-white/5 bg-slate-900/50 backdrop-blur-md flex flex-col sm:flex-row gap-4">
+                  <div className="p-6 md:p-8 border-t border-white/5 bg-slate-900 sticky bottom-0 flex flex-col sm:flex-row gap-4 z-20">
                       <button
                         onClick={handleSaveEdit}
                         className="flex-[2] bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-xl shadow-blue-900/20 active:scale-[0.98]"
