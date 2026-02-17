@@ -8,7 +8,7 @@ import {
   Maximize, Settings2, Download, Trash, X, MousePointer2, Grid3X3,
   Underline as UnderlineIcon, Pencil, Magnet
 } from 'lucide-react'
-import { CR80_WIDTH_MM, CR80_HEIGHT_MM, CR80_WIDTH_PX, CR80_HEIGHT_PX } from '../utils/units'
+import { CR80_WIDTH_MM, CR80_HEIGHT_MM } from '../utils/units'
 
 const FONTS = [
   'Arial', 'Arial Black', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact',
@@ -69,7 +69,7 @@ const Design: React.FC = () => {
       objects.forEach((obj: any) => {
         if (!obj.isGuide) canvas.remove(obj)
       })
-      canvas.backgroundColor = '#0f172a' // Reset to dark workspace
+      canvas.backgroundColor = '#ffffff'
       if (canvas.ensureGuides) canvas.ensureGuides()
 
       setLayoutName('New Layout')
@@ -160,33 +160,20 @@ const Design: React.FC = () => {
   }
 
   const handleZoomIn = () => {
-    if (!canvas) return
-    canvas.setZoom(canvas.getZoom() * 1.1)
+    // Zoom is handled automatically by CSS scale in DesignCanvas
+    toast('Zoom is automatically optimized for your screen')
   }
 
   const handleZoomOut = () => {
-    if (!canvas) return
-    canvas.setZoom(canvas.getZoom() / 1.1)
+    // Zoom is handled automatically by CSS scale in DesignCanvas
+    toast('Zoom is automatically optimized for your screen')
   }
 
   const handleZoomFit = () => {
-    if (!canvas || !canvas.getElement()) return
-    const workspace = canvas.getElement().parentElement?.parentElement
-    if (!workspace) return
-
-    const padding = 120
-    const scaleX = (workspace.clientWidth - padding) / CR80_WIDTH_PX
-    const scaleY = (workspace.clientHeight - padding) / CR80_HEIGHT_PX
-    const zoom = Math.min(scaleX, scaleY, 2)
-
-    canvas.setZoom(zoom)
-
-    // Center the 0,0-1016,638 card in the workspace
-    const vpt = canvas.viewportTransform!
-    vpt[4] = (workspace.clientWidth - CR80_WIDTH_PX * zoom) / 2
-    vpt[5] = (workspace.clientHeight - CR80_HEIGHT_PX * zoom) / 2
-
-    canvas.requestRenderAll()
+    // Already handled by DesignCanvas scale logic
+    if (canvas && canvas.requestRenderAll) {
+        canvas.requestRenderAll()
+    }
   }
 
   const handleDeleteLayout = async (id: number) => {

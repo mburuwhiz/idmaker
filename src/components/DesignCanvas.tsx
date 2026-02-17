@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import * as fabric from 'fabric'
-import { CR80_WIDTH_PX, CR80_HEIGHT_PX, mmToPx, SAFE_MARGIN_PX } from '../utils/units'
+import { CR80_WIDTH_PX, CR80_HEIGHT_PX, SAFE_MARGIN_PX } from '../utils/units'
 
 interface DesignCanvasProps {
   onCanvasReady?: (canvas: fabric.Canvas) => void
@@ -9,196 +9,108 @@ interface DesignCanvasProps {
 }
 
 const DesignCanvas: React.FC<DesignCanvasProps> = ({
-  onCanvasReady,
-  showGrid = false,
-  snapToGrid = false
+  onCanvasReady
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
-
-  const ensureGuides = (canvas: fabric.Canvas) => {
-    // Remove existing guides
-    const objects = canvas.getObjects()
-    objects.forEach((obj: any) => {
-      if (obj.isGuide) canvas.remove(obj)
-    })
-
-    // 1. The Page Background (The actual card area)
-    const pageBg = new fabric.Rect({
-      left: 0,
-      top: 0,
-      width: CR80_WIDTH_PX,
-      height: CR80_HEIGHT_PX,
-      fill: '#ffffff',
-      selectable: false,
-      evented: false,
-      excludeFromExport: true,
-      shadow: new fabric.Shadow({
-        color: 'rgba(0,0,0,0.5)',
-        blur: 30,
-        offsetX: 0,
-        offsetY: 10
-      })
-    })
-    // @ts-ignore
-    pageBg.isGuide = true
-    canvas.add(pageBg)
-    canvas.sendObjectToBack(pageBg)
-
-    // 2. Safe Margin Guide
-    const safeMargin = new fabric.Rect({
-      left: SAFE_MARGIN_PX,
-      top: SAFE_MARGIN_PX,
-      width: CR80_WIDTH_PX - 2 * SAFE_MARGIN_PX,
-      height: CR80_HEIGHT_PX - 2 * SAFE_MARGIN_PX,
-      fill: 'transparent',
-      stroke: '#f87171', // red-400
-      strokeDashArray: [5, 5],
-      selectable: false,
-      evented: false,
-      excludeFromExport: true,
-      strokeWidth: 1,
-      opacity: 0.4,
-    })
-    // @ts-ignore
-    safeMargin.isGuide = true
-    canvas.add(safeMargin)
-    canvas.bringObjectToFront(safeMargin)
-
-    canvas.requestRenderAll()
-  }
+  const [scale, setScale] = useState(1)
 
   useEffect(() => {
     if (canvasRef.current && containerRef.current && !fabricCanvasRef.current) {
-      const container = containerRef.current
-      const width = container.clientWidth
-      const height = container.clientHeight
-
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: width,
-        height: height,
-        backgroundColor: '#0f172a', // Dark workspace
+        width: CR80_WIDTH_PX,
+        height: CR80_HEIGHT_PX,
+        backgroundColor: '#ffffff',
         preserveObjectStacking: true,
       })
 
-      // Strict clipping to the card area (0,0 to 1016,638)
+      // Strict clipping to the card area
       canvas.clipPath = new fabric.Rect({
         left: 0,
         top: 0,
         width: CR80_WIDTH_PX,
         height: CR80_HEIGHT_PX,
-        absolutePositioned: false // Moves with viewport pan/zoom
+        absolutePositioned: true
       })
+
+      // Ensure guides function
+      const ensureGuides = () => {
+        const objects = canvas.getObjects()
+        objects.forEach((obj: any) => {
+          if (obj.isGuide) canvas.remove(obj)
+        })
+
+        // Safe Margin Guide
+        const safeMargin = new fabric.Rect({
+          left: SAFE_MARGIN_PX,
+          top: SAFE_MARGIN_PX,
+          width: CR80_WIDTH_PX - 2 * SAFE_MARGIN_PX,
+          height: CR80_HEIGHT_PX - 2 * SAFE_MARGIN_PX,
+          fill: 'transparent',
+          stroke: '#f87171',
+          strokeDashArray: [5, 5],
+          selectable: false,
+          evented: false,
+          excludeFromExport: true,
+          strokeWidth: 1,
+          opacity: 0.4,
+        })
+        // @ts-ignore
+        safeMargin.isGuide = true
+        canvas.add(safeMargin)
+        canvas.bringObjectToFront(safeMargin)
+        canvas.requestRenderAll()
+      }
 
       // @ts-ignore
-      canvas.ensureGuides = () => ensureGuides(canvas)
-
-      // Mouse wheel zoom
-      canvas.on('mouse:wheel', (opt) => {
-        const delta = opt.e.deltaY
-        let zoom = canvas.getZoom()
-        zoom *= 0.999 ** delta
-        if (zoom > 20) zoom = 20
-        if (zoom < 0.01) zoom = 0.01
-        canvas.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom)
-        opt.e.preventDefault()
-        opt.e.stopPropagation()
-      })
-
-      // Panning logic
-      canvas.on('mouse:down', (opt) => {
-        const evt = opt.e as any
-        if (evt.altKey || evt.button === 1) {
-          // @ts-ignore
-          canvas.isDragging = true
-          canvas.selection = false
-          // @ts-ignore
-          canvas.lastPosX = evt.clientX
-          // @ts-ignore
-          canvas.lastPosY = evt.clientY
-        }
-      })
-      canvas.on('mouse:move', (opt) => {
-        // @ts-ignore
-        if (canvas.isDragging) {
-          const e = opt.e as any
-          const vpt = canvas.viewportTransform!
-          // @ts-ignore
-          vpt[4] += e.clientX - canvas.lastPosX
-          // @ts-ignore
-          vpt[5] += e.clientY - canvas.lastPosY
-          canvas.requestRenderAll()
-          // @ts-ignore
-          canvas.lastPosX = e.clientX
-          // @ts-ignore
-          canvas.lastPosY = e.clientY
-        }
-      })
-      canvas.on('mouse:up', () => {
-        canvas.setViewportTransform(canvas.viewportTransform!)
-        // @ts-ignore
-        canvas.isDragging = false
-        canvas.selection = true
-      })
-
-      // Resize observer
-      const resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-            canvas.setDimensions({ width: entry.contentRect.width, height: entry.contentRect.height })
-            canvas.calcOffset()
-        }
-      })
-      resizeObserver.observe(container)
+      canvas.ensureGuides = ensureGuides
 
       fabricCanvasRef.current = canvas
-
-      ensureGuides(canvas)
+      ensureGuides()
 
       if (onCanvasReady) {
         onCanvasReady(canvas)
       }
-
-      // Initial Centering
-      const vpt = canvas.viewportTransform!
-      vpt[4] = (width - CR80_WIDTH_PX) / 2
-      vpt[5] = (height - CR80_HEIGHT_PX) / 2
-      canvas.requestRenderAll()
     }
 
-    const canvas = fabricCanvasRef.current
-    if (canvas) {
-      const gridPx = mmToPx(1)
-      const handleMoving = (opt: any) => {
-        if (snapToGrid) {
-          opt.target.set({
-            left: Math.round(opt.target.left / gridPx) * gridPx,
-            top: Math.round(opt.target.top / gridPx) * gridPx
-          })
-        }
-      }
-      canvas.on('object:moving', handleMoving)
-      return () => {
-        canvas.off('object:moving', handleMoving)
-      }
+    // Auto-scaling logic
+    const updateScale = () => {
+      if (!containerRef.current) return
+      const padding = 100
+      const { clientWidth, clientHeight } = containerRef.current
+      const scaleX = (clientWidth - padding) / CR80_WIDTH_PX
+      const scaleY = (clientHeight - padding) / CR80_HEIGHT_PX
+      const newScale = Math.min(scaleX, scaleY, 1.5) // Max 150% zoom
+      setScale(newScale)
     }
-  }, [onCanvasReady, snapToGrid, showGrid])
 
-  useEffect(() => {
-    return () => {
-      if (fabricCanvasRef.current) {
-        fabricCanvasRef.current.dispose()
-        fabricCanvasRef.current = null
-      }
-    }
-  }, [])
+    const resizeObserver = new ResizeObserver(updateScale)
+    if (containerRef.current) resizeObserver.observe(containerRef.current)
+    updateScale()
+
+    return () => resizeObserver.disconnect()
+  }, [onCanvasReady])
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-slate-900 overflow-hidden relative">
-      <canvas ref={canvasRef} />
-      <div className="absolute bottom-6 right-6 flex flex-col gap-2 items-end pointer-events-none">
+    <div ref={containerRef} className="w-full h-full bg-slate-900 overflow-hidden relative flex items-center justify-center p-12">
+      {/* Centered Workspace Container */}
+      <div
+        className="shadow-[0_0_80px_rgba(0,0,0,0.6)] border-[12px] border-slate-800 rounded-2xl overflow-hidden bg-white transition-transform duration-300 ease-out"
+        style={{
+            width: CR80_WIDTH_PX,
+            height: CR80_HEIGHT_PX,
+            transform: `scale(${scale})`,
+            transformOrigin: 'center center'
+        }}
+      >
+        <canvas ref={canvasRef} />
+      </div>
+
+      {/* Info Overlay */}
+      <div className="absolute bottom-6 right-6 flex flex-col gap-2 items-end pointer-events-none opacity-50">
         <div className="bg-slate-900/80 text-white text-[9px] px-3 py-1.5 rounded-full backdrop-blur-md uppercase font-black tracking-[0.1em] shadow-xl border border-white/10">
-          Middle Click or Alt+Drag to Pan • Scroll to Zoom
+          Fixed Resolution: {CR80_WIDTH_PX} x {CR80_HEIGHT_PX} PX
         </div>
       </div>
     </div>
