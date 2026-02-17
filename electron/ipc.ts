@@ -2,6 +2,7 @@ import { ipcMain, dialog, app } from 'electron'
 import db from './db.js'
 import fs from 'node:fs'
 import path from 'node:path'
+import zlib from 'node:zlib'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
@@ -100,7 +101,8 @@ export function setupIpc() {
 
       const filePath = result.filePaths[0]
       console.log('[IPC] Reading Excel file:', filePath)
-      const workbook = XLSX.readFile(filePath)
+      // cellDates: true ensures dates are read as Date objects
+      const workbook = XLSX.readFile(filePath, { cellDates: true })
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
       const data = XLSX.utils.sheet_to_json(sheet)
 
@@ -118,6 +120,17 @@ export function setupIpc() {
 
       db.transaction(() => {
         for (const row of data as any[]) {
+          // Process dates to DD/MM/YYYY string format
+          for (const key in row) {
+            if (row[key] instanceof Date) {
+              const d = row[key]
+              const day = String(d.getDate()).padStart(2, '0')
+              const month = String(d.getMonth() + 1).padStart(2, '0')
+              const year = d.getFullYear()
+              row[key] = `${day}/${month}/${year}`
+            }
+          }
+
           // Robust ADM_NO detection
           const keys = Object.keys(row)
           const admKey = keys.find(k => ['ADM_NO', 'ADM', 'ADMNO', 'ADMISSION', 'STUDENT_ID'].includes(k.toUpperCase()))
@@ -231,9 +244,18 @@ export function setupIpc() {
 
     if (!batch) return null
 
+    // Fetch associated layout if exists
+    let layout = null
+    if (batch.layoutId) {
+      layout = db.prepare('SELECT * FROM layouts WHERE id = ?').get(batch.layoutId) as any
+    }
+
     const bundle = {
-      version: '1.0.0',
-      batch: { name: batch.name },
+      version: '1.1.0', // Incremented version
+      batch: {
+        name: batch.name,
+        layout: layout ? { name: layout.name, content: layout.content } : null
+      },
       students: students.map(s => {
         let photoBase64 = null
         if (s.photoPath && fs.existsSync(s.photoPath)) {
@@ -255,7 +277,9 @@ export function setupIpc() {
     })
 
     if (savePath) {
-      fs.writeFileSync(savePath, JSON.stringify(bundle))
+      // Use gzip compression to reduce size and satisfy "NOT JSON" requirement (binary bundle)
+      const buffer = zlib.gzipSync(JSON.stringify(bundle))
+      fs.writeFileSync(savePath, buffer)
       return savePath
     }
     return null
@@ -268,11 +292,30 @@ export function setupIpc() {
 
     if (result.canceled || result.filePaths.length === 0) return null
 
-    const content = fs.readFileSync(result.filePaths[0], 'utf-8')
-    const bundle = JSON.parse(content)
+    const buffer = fs.readFileSync(result.filePaths[0])
+    let bundle: any
+
+    try {
+      // Try decompressing first
+      const decompressed = zlib.gunzipSync(buffer).toString('utf-8')
+      bundle = JSON.parse(decompressed)
+    } catch (e) {
+      // Fallback for older uncompressed JSON WID files
+      const content = buffer.toString('utf-8')
+      bundle = JSON.parse(content)
+    }
 
     const batchName = `${bundle.batch.name} (Imported)`
-    const batchResult = db.prepare('INSERT INTO batches (name) VALUES (?)').run(batchName)
+    // Handle layout import
+    let layoutId = null
+    if (bundle.batch.layout) {
+        const { name, content } = bundle.batch.layout
+        db.prepare('INSERT OR REPLACE INTO layouts (name, content) VALUES (?, ?)').run(name, content)
+        const layout = db.prepare('SELECT id FROM layouts WHERE name = ?').get(name) as any
+        if (layout) layoutId = layout.id
+    }
+
+    const batchResult = db.prepare('INSERT INTO batches (name, layoutId) VALUES (?, ?)').run(batchName, layoutId)
     const batchId = batchResult.lastInsertRowid
 
     // Create a local storage for photos

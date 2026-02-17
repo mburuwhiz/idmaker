@@ -226,8 +226,8 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
            )}
 
            {/* Navigation Overlay (Bottom) */}
-           <div className="absolute bottom-12 flex items-center gap-6 bg-slate-900/80 backdrop-blur-2xl px-8 py-5 rounded-[2rem] border border-white/10 shadow-2xl">
-              <div className="flex items-center gap-2">
+           <div className="absolute bottom-6 flex items-center gap-4 bg-slate-900/90 backdrop-blur-2xl px-6 py-4 rounded-[1.5rem] border border-white/10 shadow-2xl scale-90 sm:scale-100 flex-wrap justify-center max-w-[90%]">
+              <div className="flex items-center gap-1">
                 <button
                     disabled={currentIndex === 0}
                     onClick={() => setCurrentIndex(0)}
@@ -244,14 +244,14 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                 </button>
               </div>
 
-              <div className="flex flex-col items-center min-w-[120px]">
-                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Record</div>
-                 <div className="text-2xl font-black text-white">
+              <div className="flex flex-col items-center min-w-[100px]">
+                 <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">Record</div>
+                 <div className="text-xl font-black text-white leading-none">
                     {currentIndex + 1} <span className="text-slate-700 font-light">/</span> {students.length}
                  </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
                     disabled={currentIndex >= students.length - 1}
                     onClick={() => setCurrentIndex(prev => prev + 1)}
@@ -278,9 +278,9 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                     link.href = previewUrl
                     link.click()
                 }}
-                className="flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl shadow-blue-900/20 active:scale-95"
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-black uppercase text-[9px] tracking-widest transition-all shadow-xl active:scale-95"
               >
-                 <Download size={18} /> Download
+                 <Download size={16} /> Download
               </button>
            </div>
         </div>
@@ -305,23 +305,25 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                       </button>
                   </div>
 
-                  <div className="flex-1 overflow-auto p-8 grid grid-cols-2 gap-8">
-                      <div className="space-y-6">
-                          <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">Text Information</div>
-                          {Object.entries(editData).filter(([k]) => !k.startsWith('_')).map(([key, value]) => (
-                              <div key={key} className="space-y-2">
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">{key}</label>
-                                  <input
-                                      type="text"
-                                      value={String(value)}
-                                      onChange={(e) => setEditData({ ...editData, [key]: e.target.value })}
-                                      className="w-full bg-slate-800 border-none rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                  />
-                              </div>
-                          ))}
+                  <div className="flex-1 overflow-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                          <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Text Information</div>
+                          <div className="grid grid-cols-1 gap-4">
+                            {Object.entries(editData).filter(([k]) => !k.startsWith('_')).map(([key, value]) => (
+                                <div key={key} className="space-y-1">
+                                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">{key}</label>
+                                    <input
+                                        type="text"
+                                        value={String(value)}
+                                        onChange={(e) => setEditData({ ...editData, [key]: e.target.value })}
+                                        className="w-full bg-slate-800 border-none rounded-xl px-4 py-2 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                            ))}
+                          </div>
                       </div>
 
-                      <div className="space-y-8">
+                      <div className="space-y-6">
                           <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Photo Adjustment</div>
 
                           <div className="aspect-square bg-slate-800 rounded-3xl overflow-hidden border border-white/5 relative group">

@@ -115,6 +115,40 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     canvas.requestRenderAll()
   }, [canvas])
 
+  const duplicateSelected = useCallback(async () => {
+    if (!canvas) return
+    const activeObject = canvas.getActiveObject()
+    if (!activeObject) return
+
+    const cloned = await activeObject.clone([
+      'isPlaceholder', 'isPhotoPlaceholder', 'isPhotoFrame', 'isPhotoText',
+      'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'underline',
+      'stroke', 'fill', 'strokeWidth'
+    ])
+
+    canvas.discardActiveObject()
+    cloned.set({
+      left: cloned.left + 20,
+      top: cloned.top + 20,
+      evented: true,
+    })
+
+    if (cloned.type === 'activeSelection') {
+      // active selection needs a reference to the canvas.
+      cloned.canvas = canvas
+      cloned.forEachObject((obj: any) => {
+        canvas.add(obj)
+      })
+      // this behaves as if the objects were selected
+      cloned.setCoords()
+    } else {
+      canvas.add(cloned)
+    }
+
+    canvas.setActiveObject(cloned)
+    canvas.requestRenderAll()
+  }, [canvas])
+
   return {
     addText,
     addPlaceholder,
@@ -123,5 +157,6 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     addLine,
     addImage,
     deleteSelected,
+    duplicateSelected,
   }
 }

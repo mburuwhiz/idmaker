@@ -25,14 +25,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         preserveObjectStacking: true,
       })
 
-      // Strict clipping to the card area
-      canvas.clipPath = new fabric.Rect({
-        left: 0,
-        top: 0,
-        width: CR80_WIDTH_PX,
-        height: CR80_HEIGHT_PX,
-        absolutePositioned: true
-      })
+      // No strict clipping during design to allow off-canvas interaction
 
       // Ensure guides function
       const ensureGuides = () => {
@@ -106,7 +99,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
       {/* Centered Workspace Container with "Fixed Page" feel */}
       <div
-        className="shadow-[0_0_150px_rgba(0,0,0,0.9)] border-[20px] border-slate-900 rounded-[2.5rem] overflow-hidden bg-white transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1)"
+        className="shadow-[0_0_150px_rgba(0,0,0,0.9)] border-[20px] border-slate-900 rounded-[2.5rem] bg-white transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1)"
         style={{
             width: CR80_WIDTH_PX,
             height: CR80_HEIGHT_PX,
