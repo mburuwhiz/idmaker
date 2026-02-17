@@ -27,6 +27,7 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     })
     // @ts-ignore
     textObj.isPlaceholder = true
+    textObj.set('isPlaceholder', true)
     canvas.add(textObj)
     canvas.setActiveObject(textObj)
   }, [canvas])
@@ -63,6 +64,7 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     })
     // @ts-ignore
     group.isPhotoPlaceholder = true
+    group.set('isPhotoPlaceholder', true)
 
     canvas.add(group)
     canvas.setActiveObject(group)

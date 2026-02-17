@@ -24,9 +24,10 @@ export async function renderCard(
     height: CR80_HEIGHT_PX,
   })
 
+  // @ts-ignore
   await canvas.loadFromJSON(layoutJson)
 
-  const objects = canvas.getObjects()
+  const objects = [...canvas.getObjects()]
 
   for (const obj of objects as any[]) {
     // Replace text placeholders (support multiple placeholders and handle spaces/casing)
@@ -98,8 +99,9 @@ export async function renderCard(
         // Ensure image is at the same stacking order as the placeholder
         const index = canvas.getObjects().indexOf(obj)
         canvas.remove(obj)
+        canvas.add(img)
         // @ts-ignore
-        canvas.insertAt(index, img)
+        canvas.moveObjectTo(img, index)
       } catch (err) {
         console.error('Failed to render photo:', err)
       }

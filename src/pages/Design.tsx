@@ -186,8 +186,8 @@ const Design: React.FC = () => {
     // zoom should be centered on the card's 0,0 if we don't pan.
 
     // Correct way to center inside the fixed-size canvas when zoomed:
-    canvas.viewportTransform[4] = (canvas.width - canvas.width * zoom) / 2
-    canvas.viewportTransform[5] = (canvas.height - canvas.height * zoom) / 2
+    canvas.viewportTransform[4] = (canvas.width - CR80_WIDTH_PX * zoom) / 2
+    canvas.viewportTransform[5] = (canvas.height - CR80_HEIGHT_PX * zoom) / 2
     canvas.requestRenderAll()
   }
 

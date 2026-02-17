@@ -45,6 +45,9 @@ function createWindow() {
   Menu.setApplicationMenu(null)
   win.removeMenu()
 
+  // Open DevTools to help diagnose white screen issues in the field
+  win.webContents.openDevTools()
+
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())

@@ -19,12 +19,26 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
   useEffect(() => {
     if (canvasRef.current && containerRef.current && !fabricCanvasRef.current) {
+      const container = containerRef.current
+      const width = container.clientWidth || 1000
+      const height = container.clientHeight || 800
+
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: CR80_WIDTH_PX,
-        height: CR80_HEIGHT_PX,
-        backgroundColor: '#ffffff',
+        width: width,
+        height: height,
+        backgroundColor: '#cbd5e1', // slate-300 for workspace
         preserveObjectStacking: true,
       })
+
+      // Handle window resize
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+            const { width, height } = entry.contentRect
+            canvas.setDimensions({ width, height })
+            canvas.calcOffset()
+        }
+      })
+      resizeObserver.observe(container)
 
       // Mouse wheel zoom
       canvas.on('mouse:wheel', (opt) => {
@@ -38,7 +52,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         opt.e.stopPropagation()
       })
 
-      // Alt + click pan
+      // Alt + click or middle-button pan
       canvas.on('mouse:down', (opt) => {
         const evt = opt.e as any
         if (evt.altKey || evt.button === 1) {
@@ -76,6 +90,26 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
       fabricCanvasRef.current = canvas
 
+      // Add Card Background (The actual printable area guide)
+      const cardBg = new fabric.Rect({
+        left: 0,
+        top: 0,
+        width: CR80_WIDTH_PX,
+        height: CR80_HEIGHT_PX,
+        fill: '#ffffff',
+        selectable: false,
+        evented: false,
+        shadow: new fabric.Shadow({
+            color: 'rgba(0,0,0,0.3)',
+            blur: 30,
+            offsetX: 0,
+            offsetY: 15
+        })
+      })
+      // @ts-ignore
+      cardBg.isGuide = true
+      canvas.add(cardBg)
+
       // Add Safe Margin Guide (Optional, non-selectable)
       const safeMargin = new fabric.Rect({
         left: SAFE_MARGIN_PX,
@@ -97,6 +131,12 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       if (onCanvasReady) {
         onCanvasReady(canvas)
       }
+
+      // Initial centering
+      const vpt = canvas.viewportTransform!
+      vpt[4] = (width - CR80_WIDTH_PX) / 2
+      vpt[5] = (height - CR80_HEIGHT_PX) / 2
+      canvas.requestRenderAll()
     }
 
     const canvas = fabricCanvasRef.current
@@ -130,10 +170,8 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [])
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-slate-300 overflow-hidden relative flex items-center justify-center">
-      <div className="shadow-2xl border-4 border-slate-400/50 bg-white">
-        <canvas ref={canvasRef} />
-      </div>
+    <div ref={containerRef} className="w-full h-full bg-slate-300 overflow-hidden relative">
+      <canvas ref={canvasRef} />
 
       {/* Zoom indicator overlay */}
       <div className="absolute bottom-6 right-6 flex flex-col gap-2 items-end pointer-events-none">
