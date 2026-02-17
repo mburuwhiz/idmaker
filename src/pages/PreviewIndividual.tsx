@@ -32,7 +32,9 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
         window.ipcRenderer.invoke('get-batches')
       ])
 
-      setStudents(s.map((item: any) => ({ ...item, data: JSON.parse(item.data) })))
+      // Filter out students who failed photo matching or are missing required photo
+      const filtered = s.filter((item: any) => item.printStatus !== 'failed' && item.photoPath)
+      setStudents(filtered.map((item: any) => ({ ...item, data: JSON.parse(item.data) })))
       setLayouts(l)
 
       const batch = b.find((item: any) => item.id === batchId)

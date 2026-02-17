@@ -10,7 +10,12 @@ export async function processPhoto(source: string | ArrayBuffer, width: number, 
         // If image is very small or smartcrop fails, we still want to show something
         let result;
         try {
-          result = await smartcrop.crop(img, { width, height })
+          result = await smartcrop.crop(img, {
+            width,
+            height,
+            ruleOfThirds: true,
+            minScale: 1.0, // Ensure it doesn't zoom out too much
+          })
         } catch (e) {
           console.warn('[PhotoService] Smartcrop failed, using center crop fallback', e)
         }

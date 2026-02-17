@@ -63,7 +63,9 @@ const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
 
   const loadStudents = async (batchId: number) => {
     const data = await window.ipcRenderer.invoke('get-students', batchId)
-    setStudents(data.map((s: any) => ({ ...s, data: JSON.parse(s.data) })))
+    // Filter out students who failed photo matching or are missing required photo
+    const filtered = data.filter((s: any) => s.printStatus !== 'failed' && s.photoPath)
+    setStudents(filtered.map((s: any) => ({ ...s, data: JSON.parse(s.data) })))
     setCurrentIndex(0)
   }
 

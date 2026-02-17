@@ -10,7 +10,32 @@
     "postinstall": "npm run rebuild",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.whizpoint.id",
+    "productName": "WhizPoint ID",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist",
+      "dist-electron",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icons/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "WhizPoint ID"
+    },
+    "asar": true
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",
