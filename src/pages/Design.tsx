@@ -166,19 +166,29 @@ const Design: React.FC = () => {
 
   const handleZoomFit = () => {
     if (!canvas || !canvas.getElement()) return
-    const container = canvas.getElement().parentElement?.parentElement
+    // The canvas parent is the shadow-2xl div, and its parent is the centered container
+    const container = canvas.getElement().parentElement?.parentElement?.parentElement
     if (!container) return
 
-    const padding = 60
+    const padding = 80
     const scaleX = (container.clientWidth - padding) / CR80_WIDTH_PX
     const scaleY = (container.clientHeight - padding) / CR80_HEIGHT_PX
-    const zoom = Math.min(scaleX, scaleY, 1)
+    const zoom = Math.min(scaleX, scaleY, 1.5) // Allow slightly larger than 1:1 if space permits
     canvas.setZoom(zoom)
 
+    // Center the viewport
     const vpt = [...canvas.viewportTransform!]
-    vpt[4] = (container.clientWidth - CR80_WIDTH_PX * zoom) / 2
-    vpt[5] = (container.clientHeight - CR80_HEIGHT_PX * zoom) / 2
-    canvas.setViewportTransform(vpt)
+    vpt[4] = (CR80_WIDTH_PX - CR80_WIDTH_PX * zoom) / 2
+    vpt[5] = (CR80_HEIGHT_PX - CR80_HEIGHT_PX * zoom) / 2
+
+    // Actually, since the Fabric canvas IS the card,
+    // and we center the canvas element via CSS flexbox,
+    // zoom should be centered on the card's 0,0 if we don't pan.
+
+    // Correct way to center inside the fixed-size canvas when zoomed:
+    canvas.viewportTransform[4] = (canvas.width - canvas.width * zoom) / 2
+    canvas.viewportTransform[5] = (canvas.height - canvas.height * zoom) / 2
+    canvas.requestRenderAll()
   }
 
   const handleDeleteLayout = async (id: number) => {

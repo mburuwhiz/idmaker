@@ -19,21 +19,29 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
   useEffect(() => {
     if (canvasRef.current && containerRef.current && !fabricCanvasRef.current) {
-      const container = containerRef.current
-      const width = container.clientWidth || 1000
-      const height = container.clientHeight || 800
-
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: width,
-        height: height,
-        backgroundColor: '#cbd5e1', // slate-300 for workspace
+        width: CR80_WIDTH_PX,
+        height: CR80_HEIGHT_PX,
+        backgroundColor: '#ffffff',
         preserveObjectStacking: true,
       })
 
-      // Middle mouse pan
+      // Mouse wheel zoom
+      canvas.on('mouse:wheel', (opt) => {
+        const delta = opt.e.deltaY
+        let zoom = canvas.getZoom()
+        zoom *= 0.999 ** delta
+        if (zoom > 20) zoom = 20
+        if (zoom < 0.01) zoom = 0.01
+        canvas.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom)
+        opt.e.preventDefault()
+        opt.e.stopPropagation()
+      })
+
+      // Alt + click pan
       canvas.on('mouse:down', (opt) => {
         const evt = opt.e as any
-        if (evt.button === 1) { // Middle button
+        if (evt.altKey || evt.button === 1) {
           // @ts-ignore
           canvas.isDragging = true
           canvas.selection = false
@@ -66,57 +74,9 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         canvas.selection = true
       })
 
-      // Zoom
-      canvas.on('mouse:wheel', (opt) => {
-        const delta = opt.e.deltaY
-        let zoom = canvas.getZoom()
-        zoom *= 0.999 ** delta
-        if (zoom > 8) zoom = 8
-        if (zoom < 0.25) zoom = 0.25
-        canvas.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom)
-        opt.e.preventDefault()
-        opt.e.stopPropagation()
-      })
-
       fabricCanvasRef.current = canvas
 
-      // Add Card Background (The actual printable area)
-      const cardBg = new fabric.Rect({
-        left: 0,
-        top: 0,
-        width: CR80_WIDTH_PX,
-        height: CR80_HEIGHT_PX,
-        fill: '#ffffff',
-        selectable: false,
-        evented: false,
-        shadow: new fabric.Shadow({
-            color: 'rgba(0,0,0,0.3)',
-            blur: 30,
-            offsetX: 0,
-            offsetY: 15
-        })
-      })
-      // @ts-ignore
-      cardBg.isGuide = true
-      canvas.add(cardBg)
-
-      // Add Card Border
-      const cardBorder = new fabric.Rect({
-        left: 0,
-        top: 0,
-        width: CR80_WIDTH_PX,
-        height: CR80_HEIGHT_PX,
-        fill: 'transparent',
-        stroke: '#94a3b8', // slate-400
-        strokeWidth: 1,
-        selectable: false,
-        evented: false,
-      })
-      // @ts-ignore
-      cardBorder.isGuide = true
-      canvas.add(cardBorder)
-
-      // Add Safe Margin Guide
+      // Add Safe Margin Guide (Optional, non-selectable)
       const safeMargin = new fabric.Rect({
         left: SAFE_MARGIN_PX,
         top: SAFE_MARGIN_PX,
@@ -128,7 +88,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         selectable: false,
         evented: false,
         strokeWidth: 1,
-        opacity: 0.5,
+        opacity: 0.3,
       })
       // @ts-ignore
       safeMargin.isGuide = true
@@ -137,18 +97,6 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       if (onCanvasReady) {
         onCanvasReady(canvas)
       }
-
-      // Initial zoom to fit and center
-      const padding = 60
-      const scaleX = (width - padding) / CR80_WIDTH_PX
-      const scaleY = (height - padding) / CR80_HEIGHT_PX
-      const zoom = Math.min(scaleX, scaleY, 1)
-      canvas.setZoom(zoom)
-
-      const vpt = canvas.viewportTransform!
-      vpt[4] = (width - CR80_WIDTH_PX * zoom) / 2
-      vpt[5] = (height - CR80_HEIGHT_PX * zoom) / 2
-      canvas.requestRenderAll()
     }
 
     const canvas = fabricCanvasRef.current
@@ -182,13 +130,15 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [])
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-slate-300 overflow-hidden relative">
-      <canvas ref={canvasRef} />
+    <div ref={containerRef} className="w-full h-full bg-slate-300 overflow-hidden relative flex items-center justify-center">
+      <div className="shadow-2xl border-4 border-slate-400/50 bg-white">
+        <canvas ref={canvasRef} />
+      </div>
 
       {/* Zoom indicator overlay */}
       <div className="absolute bottom-6 right-6 flex flex-col gap-2 items-end pointer-events-none">
         <div className="bg-slate-900/80 text-white text-[9px] px-3 py-1.5 rounded-full backdrop-blur-md uppercase font-black tracking-[0.1em] shadow-xl border border-white/10">
-          Middle Click to Pan • Scroll to Zoom
+          Middle Click or Alt+Drag to Pan • Scroll to Zoom
         </div>
       </div>
     </div>

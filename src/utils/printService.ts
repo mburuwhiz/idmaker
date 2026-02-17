@@ -61,36 +61,48 @@ export async function renderCard(
 
     // Replace photo placeholder
     if (obj.isPhotoPlaceholder && photoData) {
-      // Apply smartcrop processing
-      const processedData = await processPhoto(photoData, obj.width, obj.height)
-      const img = await fabric.Image.fromURL(processedData)
+      // Use scaled dimensions to handle resized placeholders
+      const visualWidth = obj.getScaledWidth()
+      const visualHeight = obj.getScaledHeight()
 
-      // Apply manual adjustments
-      const { zoom, x, y } = adjustments
+      try {
+        // Apply smartcrop processing
+        const processedData = await processPhoto(photoData, visualWidth, visualHeight)
+        const img = await fabric.Image.fromURL(processedData)
 
-      // Calculate scaled dimensions
-      const sw = obj.width * zoom
-      const sh = obj.height * zoom
+        // Apply manual adjustments
+        const { zoom, x, y } = adjustments
 
-      // Calculate offsets (center-based scaling)
-      const ox = (obj.width - sw) / 2 + (x || 0)
-      const oy = (obj.height - sh) / 2 + (y || 0)
+        // Calculate scaled dimensions based on visual dimensions
+        const sw = visualWidth * zoom
+        const sh = visualHeight * zoom
 
-      img.set({
-        left: obj.left + ox,
-        top: obj.top + oy,
-        width: sw,
-        height: sh,
-        clipPath: new fabric.Rect({
-            left: obj.left,
-            top: obj.top,
-            width: obj.width,
-            height: obj.height,
-            absolutePositioned: true
+        // Calculate offsets (center-based scaling)
+        const ox = (visualWidth - sw) / 2 + (x || 0)
+        const oy = (visualHeight - sh) / 2 + (y || 0)
+
+        img.set({
+          left: obj.left + ox,
+          top: obj.top + oy,
+          width: sw,
+          height: sh,
+          clipPath: new fabric.Rect({
+              left: obj.left,
+              top: obj.top,
+              width: visualWidth,
+              height: visualHeight,
+              absolutePositioned: true
+          })
         })
-      })
-      canvas.remove(obj)
-      canvas.add(img)
+
+        // Ensure image is at the same stacking order as the placeholder
+        const index = canvas.getObjects().indexOf(obj)
+        canvas.remove(obj)
+        // @ts-ignore
+        canvas.insertAt(index, img)
+      } catch (err) {
+        console.error('Failed to render photo:', err)
+      }
     }
   }
 
