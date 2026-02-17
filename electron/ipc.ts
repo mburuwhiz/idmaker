@@ -1,15 +1,17 @@
-import { ipcMain, dialog } from 'electron'
+import { ipcMain, dialog, app } from 'electron'
 import db from './db.js'
 import fs from 'node:fs'
 import path from 'node:path'
-import * as XLSX from 'xlsx'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const XLSX = require('xlsx')
 
 export function setupIpc() {
   console.log('[IPC] Registering handlers...')
 
   // Profiles
   ipcMain.handle('get-profiles', () => {
-    console.log('[IPC] get-profiles called')
     return db.prepare('SELECT * FROM printer_profiles').all()
   })
 
@@ -55,9 +57,9 @@ export function setupIpc() {
   })
 
   // Specialized Import
-  ipcMain.handle('import-excel', async () => {
+  ipcMain.handle('import-excel', async (_event, requiredColumns: string[] = []) => {
     try {
-      console.log('[IPC] import-excel called')
+      console.log('[IPC] import-excel called with requirements:', requiredColumns)
       const result = await dialog.showOpenDialog({
         filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }]
       })
@@ -71,6 +73,15 @@ export function setupIpc() {
 
       if (!data || data.length === 0) {
         throw new Error('Excel file is empty')
+      }
+
+      // Validation
+      if (requiredColumns.length > 0) {
+        const headers = Object.keys(data[0] as object).map(h => h.toUpperCase())
+        const missing = requiredColumns.filter(col => !headers.includes(col.toUpperCase()))
+        if (missing.length > 0) {
+          throw new Error(`Missing required columns: ${missing.join(', ')}`)
+        }
       }
 
       const batchName = `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
@@ -159,9 +170,31 @@ export function setupIpc() {
     return null
   })
 
+  ipcMain.handle('generate-sample-excel', async (_event, columns: string[]) => {
+    const sampleData = [{}] as any[]
+    columns.forEach(col => {
+      sampleData[0][col] = `Sample ${col}`
+    })
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template')
+
+    const savePath = dialog.showSaveDialogSync({
+      title: 'Save Sample Excel Template',
+      defaultPath: 'ID_Import_Template.xlsx',
+      filters: [{ name: 'Excel Files', extensions: ['xlsx'] }]
+    })
+
+    if (savePath) {
+      XLSX.writeFile(workbook, savePath)
+      return savePath
+    }
+    return null
+  })
+
   // Read restricted to specific photo paths
   ipcMain.handle('read-photo', async (_event, photoPath) => {
-    // In a real app, verify that photoPath is within allowed directories
     if (!fs.existsSync(photoPath)) return null
     return fs.readFileSync(photoPath).toString('base64')
   })
