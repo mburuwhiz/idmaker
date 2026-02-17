@@ -27,6 +27,9 @@ export async function renderCard(
   // @ts-ignore
   await canvas.loadFromJSON(layoutJson)
 
+  // Force standard dimensions after loading JSON as it might contain different sizes
+  canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+
   // Ensure print background is white, ignoring designer workspace color
   canvas.backgroundColor = '#ffffff'
 
@@ -73,7 +76,8 @@ export async function renderCard(
       // Always hide the "PHOTO" text guide during printing/export
       const children = obj.getObjects ? obj.getObjects() : (obj._objects || [])
       children.forEach((child: any) => {
-        if (child.isPhotoText || child.get('isPhotoText')) {
+        // Fallback check for text content 'PHOTO' to be safe
+        if (child.isPhotoText || child.get?.('isPhotoText') || child.text === 'PHOTO') {
           child.set('visible', false)
         }
       })

@@ -64,9 +64,20 @@ export async function processPhoto(source: string | ArrayBuffer, width: number, 
       if (source.startsWith('data:')) {
         img.src = source
       } else {
-        // More robust base64 detection
-        const isPng = source.length > 10 && source.substring(0, 20).includes('iVBORw0KGgo')
-        const mime = isPng ? 'image/png' : 'image/jpeg'
+        // Highly robust base64 detection by checking magic numbers
+        // PNG starts with iVBORw0KGgo...
+        // JPEG starts with /9j/...
+        let mime = 'image/jpeg' // Default to jpeg
+        const prefix = source.substring(0, 30)
+
+        if (prefix.includes('iVBORw0KGgo')) {
+          mime = 'image/png'
+        } else if (prefix.includes('/9j/')) {
+          mime = 'image/jpeg'
+        } else {
+          console.warn('[PhotoService] Unrecognized base64 header, defaulting to image/jpeg. Prefix:', prefix.substring(0, 10))
+        }
+
         img.src = `data:${mime};base64,${source}`
       }
     } else {

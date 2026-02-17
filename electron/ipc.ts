@@ -121,9 +121,10 @@ export function setupIpc() {
           // Robust ADM_NO detection
           const keys = Object.keys(row)
           const admKey = keys.find(k => ['ADM_NO', 'ADM', 'ADMNO', 'ADMISSION', 'STUDENT_ID'].includes(k.toUpperCase()))
-          const admNo = admKey ? row[admKey] : `TEMP-${Math.random().toString(36).substr(2, 5)}`
+          // Trim admission number for consistency
+          const admNo = (admKey ? row[admKey] : `TEMP-${Math.random().toString(36).substr(2, 5)}`).toString().trim()
 
-          insertStudent.run(batchId, admNo.toString(), JSON.stringify(row))
+          insertStudent.run(batchId, admNo, JSON.stringify(row))
         }
       })()
 
@@ -153,7 +154,9 @@ export function setupIpc() {
 
     db.transaction(() => {
       for (const student of students) {
-        const matches = files.filter(f => f.split('.')[0] === student.admNo)
+        // Case-insensitive and trimmed matching
+        const targetAdmNo = student.admNo.trim().toUpperCase()
+        const matches = files.filter(f => f.split('.')[0].trim().toUpperCase() === targetAdmNo)
 
         if (matches.length === 0) {
           // No photo found

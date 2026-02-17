@@ -86,8 +86,8 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       const scaleX = availableWidth / CR80_WIDTH_PX
       const scaleY = availableHeight / CR80_HEIGHT_PX
 
-      // We want the card to fit comfortably but not be too small
-      const newScale = Math.min(scaleX, scaleY, 1.2)
+      // Allow the card to scale up more on large screens for "perfection"
+      const newScale = Math.min(scaleX, scaleY, 2.5)
       setScale(newScale)
     }
 
@@ -99,19 +99,21 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [onCanvasReady])
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-slate-900 overflow-hidden relative flex items-center justify-center">
-      {/* Background patterns for a more "design" feel */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+    <div ref={containerRef} className="w-full h-full bg-slate-950 overflow-hidden relative flex items-center justify-center">
+      {/* Sophisticated Background patterns */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)', backgroundSize: '100px 100px' }}></div>
+      <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
 
-      {/* Centered Workspace Container */}
+      {/* Centered Workspace Container with "Fixed Page" feel */}
       <div
-        className="shadow-[0_0_100px_rgba(0,0,0,0.7)] border-[16px] border-slate-800 rounded-[2rem] overflow-hidden bg-white transition-all duration-500 ease-out"
+        className="shadow-[0_0_150px_rgba(0,0,0,0.9)] border-[20px] border-slate-900 rounded-[2.5rem] overflow-hidden bg-white transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1)"
         style={{
             width: CR80_WIDTH_PX,
             height: CR80_HEIGHT_PX,
             transform: `scale(${scale})`,
             transformOrigin: 'center center',
-            flexShrink: 0
+            flexShrink: 0,
+            outline: '1px solid rgba(255,255,255,0.1)'
         }}
       >
         <canvas ref={canvasRef} />

@@ -118,6 +118,9 @@ const Design: React.FC = () => {
       toast.error('Canvas not initialized');
       return;
     }
+    // Force standard dimensions before saving to ensure consistency
+    canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+
     const loadToast = toast.loading('Saving layout...');
     try {
       const content = JSON.stringify(canvas.toJSON([
