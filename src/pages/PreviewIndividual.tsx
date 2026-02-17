@@ -1,0 +1,229 @@
+import React, { useState, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, X, Printer, Download, User, Info, AlertCircle, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { renderCard } from '../utils/printService'
+
+interface PreviewIndividualProps {
+  batchId: number
+  onExit: () => void
+}
+
+const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }) => {
+  const [students, setStudents] = useState<any[]>([])
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [layouts, setLayouts] = useState<any[]>([])
+  const [selectedLayoutId, setSelectedLayoutId] = useState<number | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const s = await window.ipcRenderer.invoke('get-students', batchId)
+      const l = await window.ipcRenderer.invoke('get-layouts')
+
+      setStudents(s.map((item: any) => ({ ...item, data: JSON.parse(item.data) })))
+      setLayouts(l)
+
+      if (l.length > 0) setSelectedLayoutId(l[0].id)
+    } catch (e) {
+      toast.error('Failed to load data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    updatePreview()
+  }, [currentIndex, students, selectedLayoutId])
+
+  const updatePreview = async () => {
+    if (students.length === 0 || !selectedLayoutId) return
+
+    const layout = layouts.find(l => l.id === selectedLayoutId)
+    if (!layout) return
+
+    const student = students[currentIndex]
+    const photo = student.photoPath ? await window.ipcRenderer.invoke('read-photo', student.photoPath) : null
+    const pData = photo ? `data:image/jpeg;base64,${photo}` : undefined
+
+    const card = await renderCard(layout.content, student.data, pData)
+    setPreviewUrl(card.toDataURL())
+  }
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-slate-900 flex items-center justify-center text-white z-[100]">
+        <div className="flex flex-col items-center">
+           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+           <p className="font-bold tracking-widest uppercase text-xs">Preparing High-Res Previews...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const currentStudent = students[currentIndex]
+
+  return (
+    <div className="fixed inset-0 bg-slate-950 flex flex-col z-[100] animate-in fade-in duration-300">
+      {/* Top Header */}
+      <div className="bg-slate-900/50 backdrop-blur-xl border-b border-white/5 px-8 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+           <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-900/20">
+              <User className="text-white" size={24} />
+           </div>
+           <div>
+              <h2 className="text-white font-black text-lg uppercase tracking-tight leading-none">Individual Card Preview</h2>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Batch ID: {batchId} • Total Records: {students.length}</p>
+           </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+           <div className="flex flex-col items-end mr-4">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Active Layout</label>
+              <select
+                className="bg-slate-800 text-white text-xs font-bold border-none rounded-lg focus:ring-2 focus:ring-blue-500 px-3 py-1.5"
+                value={selectedLayoutId || ''}
+                onChange={(e) => setSelectedLayoutId(Number(e.target.value))}
+              >
+                {layouts.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+           </div>
+           <button
+             onClick={onExit}
+             className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white p-3 rounded-xl transition-all border border-red-500/20 active:scale-95"
+           >
+              <X size={24} />
+           </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Info Panel */}
+        <div className="w-96 border-r border-white/5 bg-slate-900/30 p-8 overflow-auto">
+           {currentStudent ? (
+             <div className="space-y-8">
+                <div className="bg-white/5 rounded-2xl p-6 border border-white/10 shadow-2xl">
+                   <div className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-3">Student Identity</div>
+                   <h3 className="text-2xl font-black text-white leading-tight">{currentStudent.data.NAME || 'NO NAME'}</h3>
+                   <p className="text-slate-400 font-mono text-sm mt-1">{currentStudent.admNo}</p>
+
+                   <div className="mt-6 pt-6 border-t border-white/5 space-y-3">
+                      {Object.entries(currentStudent.data).map(([key, value]) => (
+                        <div key={key} className="flex justify-between items-center">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase">{key}</span>
+                           <span className="text-xs font-medium text-slate-300">{String(value)}</span>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
+                <div className={`rounded-2xl p-6 border flex items-center gap-4 ${currentStudent.photoPath ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}`}>
+                   {currentStudent.photoPath ? <Printer size={32} /> : <AlertCircle size={32} />}
+                   <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest">Resource Status</div>
+                      <div className="font-bold text-sm uppercase">{currentStudent.photoPath ? 'Photo Linked' : 'Missing Photo'}</div>
+                   </div>
+                </div>
+
+                <div className="bg-blue-600/10 border border-blue-500/20 rounded-2xl p-6 text-blue-400">
+                   <div className="flex items-center gap-2 mb-2">
+                      <Info size={16} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Projection Mode</span>
+                   </div>
+                   <p className="text-xs leading-relaxed font-medium">Use this view for details confirmation. All details shown here are exactly what will be printed.</p>
+                </div>
+             </div>
+           ) : (
+             <div className="text-slate-500 italic text-center py-20">No record selected</div>
+           )}
+        </div>
+
+        {/* Center Preview Panel */}
+        <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center p-12 relative overflow-hidden">
+           {/* Backdrop Glow */}
+           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
+
+           {previewUrl ? (
+             <div className="relative group transition-all duration-700 hover:scale-[1.02]">
+                <img
+                    src={previewUrl}
+                    className="max-h-full shadow-[0_80px_150px_rgba(0,0,0,0.8)] border-[12px] border-white/5 rounded-3xl"
+                    alt="Individual Card Preview"
+                />
+                <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 pointer-events-none" />
+             </div>
+           ) : (
+             <div className="text-slate-600 font-black uppercase tracking-[0.2em] animate-pulse">Rendering...</div>
+           )}
+
+           {/* Navigation Overlay (Bottom) */}
+           <div className="absolute bottom-12 flex items-center gap-6 bg-slate-900/80 backdrop-blur-2xl px-8 py-5 rounded-[2rem] border border-white/10 shadow-2xl">
+              <div className="flex items-center gap-2">
+                <button
+                    disabled={currentIndex === 0}
+                    onClick={() => setCurrentIndex(0)}
+                    className="p-3 hover:bg-white/10 rounded-full text-slate-400 disabled:opacity-20 transition-all"
+                >
+                    <ChevronsLeft size={24} />
+                </button>
+                <button
+                    disabled={currentIndex === 0}
+                    onClick={() => setCurrentIndex(prev => prev - 1)}
+                    className="p-3 hover:bg-white/10 rounded-full text-white disabled:opacity-20 transition-all"
+                >
+                    <ChevronLeft size={32} />
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center min-w-[120px]">
+                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Record</div>
+                 <div className="text-2xl font-black text-white">
+                    {currentIndex + 1} <span className="text-slate-700 font-light">/</span> {students.length}
+                 </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                    disabled={currentIndex >= students.length - 1}
+                    onClick={() => setCurrentIndex(prev => prev + 1)}
+                    className="p-3 hover:bg-white/10 rounded-full text-white disabled:opacity-20 transition-all"
+                >
+                    <ChevronRight size={32} />
+                </button>
+                <button
+                    disabled={currentIndex >= students.length - 1}
+                    onClick={() => setCurrentIndex(students.length - 1)}
+                    className="p-3 hover:bg-white/10 rounded-full text-slate-400 disabled:opacity-20 transition-all"
+                >
+                    <ChevronsRight size={24} />
+                </button>
+              </div>
+
+              <div className="h-10 w-px bg-white/10 mx-2" />
+
+              <button
+                onClick={() => {
+                    if (!previewUrl) return
+                    const link = document.createElement('a')
+                    link.download = `Preview_${currentStudent?.admNo}.png`
+                    link.href = previewUrl
+                    link.click()
+                }}
+                className="flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl shadow-blue-900/20 active:scale-95"
+              >
+                 <Download size={18} /> Download
+              </button>
+           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default PreviewIndividual

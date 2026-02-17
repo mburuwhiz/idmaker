@@ -1,0 +1,5 @@
+dist
+dist-electron
+*.db
+*.log
+node_modules
