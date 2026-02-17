@@ -6,7 +6,7 @@ import {
   Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2,
   MoveUp, MoveDown, UserSquare, Bold, Italic, FileUp, ZoomIn, ZoomOut,
   Maximize, Settings2, Download, Trash, X, MousePointer2, Grid3X3,
-  Underline as UnderlineIcon, Pencil, Magnet, LayoutTemplate
+  Underline as UnderlineIcon, Pencil, Magnet, LayoutTemplate, Undo2, Redo2, Copy
 } from 'lucide-react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM, CR80_WIDTH_PX, CR80_HEIGHT_PX } from '../utils/units'
 
@@ -19,8 +19,13 @@ const FONTS = [
 
 const Design: React.FC = () => {
   const [canvas, setCanvas] = useState<any>(null)
-  const { addText, addPlaceholder, addPhotoFrame, addRect, addLine, addImage, deleteSelected } = useCanvasActions(canvas)
+  const { addText, addPlaceholder, addPhotoFrame, addRect, addLine, addImage, deleteSelected, duplicateSelected } = useCanvasActions(canvas)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // History for Undo/Redo
+  const [history, setHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const isRedoing = useRef(false)
   const [showGrid, setShowGrid] = useState(false)
   const [snapToGrid, setSnapToGrid] = useState(false)
   const [selectedObject, setSelectedObject] = useState<any>(null)
@@ -31,6 +36,109 @@ const Design: React.FC = () => {
   useEffect(() => {
     loadLayouts()
   }, [])
+
+  const saveToHistory = (c: any) => {
+    if (!c || isRedoing.current) return
+    const json = JSON.stringify(c.toJSON([
+      'isPlaceholder', 'isPhotoPlaceholder', 'isPhotoFrame', 'isPhotoText',
+      'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'selectable', 'underline'
+    ]))
+
+    setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1)
+        newHistory.push(json)
+        // Keep last 50 states
+        if (newHistory.length > 50) newHistory.shift()
+        return newHistory
+    })
+    setHistoryIndex(prev => Math.min(prev + 1, 49))
+  }
+
+  const undo = async () => {
+    if (historyIndex > 0 && canvas) {
+      isRedoing.current = true
+      const prevState = history[historyIndex - 1]
+      await canvas.loadFromJSON(prevState)
+      canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+      if (canvas.ensureGuides) canvas.ensureGuides()
+      canvas.renderAll()
+      setHistoryIndex(historyIndex - 1)
+      isRedoing.current = false
+    }
+  }
+
+  const redo = async () => {
+    if (historyIndex < history.length - 1 && canvas) {
+      isRedoing.current = true
+      const nextState = history[historyIndex + 1]
+      await canvas.loadFromJSON(nextState)
+      canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+      if (canvas.ensureGuides) canvas.ensureGuides()
+      canvas.renderAll()
+      setHistoryIndex(historyIndex + 1)
+      isRedoing.current = false
+    }
+  }
+
+  // Layout Persistence: Save draft to localStorage
+  const saveDraft = (c: any) => {
+    if (!c) return
+    const content = JSON.stringify(c.toJSON([
+      'isPlaceholder',
+      'isPhotoPlaceholder',
+      'isPhotoFrame',
+      'isPhotoText',
+      'fontWeight',
+      'fontStyle',
+      'fontFamily',
+      'rx', 'ry', 'selectable', 'underline'
+    ]));
+    localStorage.setItem('whizpoint_design_draft', content)
+    localStorage.setItem('whizpoint_design_name', layoutName)
+  }
+
+  useEffect(() => {
+    if (!canvas) return
+
+    const handleCanvasChange = () => {
+      saveDraft(canvas)
+      saveToHistory(canvas)
+    }
+
+    canvas.on('object:modified', handleCanvasChange)
+    canvas.on('object:added', handleCanvasChange)
+    canvas.on('object:removed', handleCanvasChange)
+    canvas.on('path:created', handleCanvasChange)
+
+    return () => {
+      canvas.off('object:modified', handleCanvasChange)
+      canvas.off('object:added', handleCanvasChange)
+      canvas.off('object:removed', handleCanvasChange)
+      canvas.off('path:created', handleCanvasChange)
+    }
+  }, [canvas, layoutName])
+
+  // Load draft on mount
+  useEffect(() => {
+    if (!canvas) return
+
+    const draft = localStorage.getItem('whizpoint_design_draft')
+    // Initialize history with empty state if no draft
+    if (!draft && history.length === 0) {
+        saveToHistory(canvas)
+    }
+    const savedName = localStorage.getItem('whizpoint_design_name')
+
+    if (draft && canvas.getObjects().filter((obj: any) => !obj.isGuide).length === 0) {
+      canvas.loadFromJSON(draft).then(() => {
+          canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+          if (canvas.ensureGuides) canvas.ensureGuides()
+          if (savedName) setLayoutName(savedName)
+          canvas.renderAll()
+          setTimeout(handleZoomFit, 100)
+      })
+    }
+  }, [canvas])
 
   const loadLayouts = async () => {
     try {
@@ -57,6 +165,8 @@ const Design: React.FC = () => {
 
       setLayoutName(layout.name)
       setShowTemplateManager(false)
+      // Save as draft immediately when loaded
+      saveDraft(canvas)
       toast.success('Layout loaded!', { id: loadToast })
       // Auto zoom to fit after load
       setTimeout(handleZoomFit, 100)
@@ -77,6 +187,8 @@ const Design: React.FC = () => {
 
       setLayoutName('New Layout')
       canvas.renderAll()
+      localStorage.removeItem('whizpoint_design_draft')
+      localStorage.removeItem('whizpoint_design_name')
       toast.success('New layout started')
       handleZoomFit()
     }
@@ -84,6 +196,30 @@ const Design: React.FC = () => {
 
   useEffect(() => {
     if (!canvas) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault()
+            undo()
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+            e.preventDefault()
+            redo()
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+            e.preventDefault()
+            duplicateSelected()
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+            // Native copy works for text, but for fabric objects we might want custom
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+            // Native paste
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+            // Only delete if not in an input/textarea
+            if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+                deleteSelected()
+            }
+        }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
 
     const handleSelection = () => {
       const obj = canvas.getActiveObject()
@@ -107,11 +243,12 @@ const Design: React.FC = () => {
     canvas.on('selection:cleared', () => setSelectedObject(null))
 
     return () => {
+      window.removeEventListener('keydown', handleKeyDown)
       canvas.off('selection:created', handleSelection)
       canvas.off('selection:updated', handleSelection)
       canvas.off('selection:cleared')
     }
-  }, [canvas])
+  }, [canvas, historyIndex, history])
 
   const handleSave = async () => {
     if (!canvas) {
@@ -153,6 +290,7 @@ const Design: React.FC = () => {
       activeObject.set(prop)
     }
     canvas.requestRenderAll()
+    saveDraft(canvas)
 
     setSelectedObject({
       ...activeObject.toObject([
@@ -247,92 +385,71 @@ const Design: React.FC = () => {
 
   return (
     <div className="flex h-screen flex-col bg-slate-50 overflow-hidden">
-      {/* Modern High-End Toolbar */}
-      <div className="bg-white border-b px-8 py-3 flex items-center justify-between shadow-sm z-30">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 pr-4 border-r">
-             <LayoutTemplate className="text-blue-600" size={24} />
-             <div>
-                <h1 className="text-sm font-black uppercase tracking-tighter text-slate-800 leading-none">ID Designer</h1>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">v1.0 Professional</p>
+      {/* Modern Compact Toolbar */}
+      <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-30 flex-wrap gap-y-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pr-2 border-r">
+             <LayoutTemplate className="text-blue-600" size={20} />
+             <div className="hidden sm:block">
+                <h1 className="text-[11px] font-black uppercase tracking-tighter text-slate-800 leading-none">ID Designer</h1>
+                <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Professional</p>
              </div>
           </div>
 
-          <button
-            onClick={handleNew}
-            className="p-2.5 hover:bg-slate-100 rounded-xl text-slate-600 border border-slate-200 flex items-center gap-2 bg-white transition-all active:scale-95 shadow-sm"
-            title="New Layout"
-          >
-            <FileUp size={18} className="rotate-180" /> <span className="text-[10px] font-black uppercase tracking-wider hidden lg:inline">New</span>
-          </button>
+          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+             <button onClick={handleNew} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-600 transition-all active:scale-95" title="New Layout"><FileUp size={16} className="rotate-180" /></button>
+             <div className="w-px h-4 bg-slate-200 mx-0.5" />
+             <button onClick={undo} disabled={historyIndex <= 0} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-600 disabled:opacity-30 transition-all" title="Undo (Ctrl+Z)"><Undo2 size={16} /></button>
+             <button onClick={redo} disabled={historyIndex >= history.length - 1} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-600 disabled:opacity-30 transition-all" title="Redo (Ctrl+Y)"><Redo2 size={16} /></button>
+             <button onClick={duplicateSelected} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-600 transition-all" title="Duplicate (Ctrl+D)"><Copy size={16} /></button>
+          </div>
 
-          <div className="h-10 w-px bg-slate-200" />
-
-          <div className="flex items-center bg-slate-50 rounded-2xl p-1.5 gap-1 border border-slate-200">
-            <button onClick={() => addText()} className="px-4 py-2 hover:bg-white hover:shadow-md rounded-xl text-slate-700 flex items-center gap-2 transition-all group" title="Add Text">
-              <Type size={18} className="group-hover:text-blue-600" /> <span className="text-[10px] font-black uppercase tracking-tight">Text</span>
+          <div className="flex items-center bg-slate-50 rounded-xl p-1 gap-0.5 border border-slate-200">
+            <button onClick={() => addText()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-700 flex items-center gap-1.5 transition-all group" title="Add Text">
+              <Type size={16} className="group-hover:text-blue-600" /> <span className="text-[9px] font-black uppercase hidden lg:inline">Text</span>
             </button>
-            <button onClick={() => addPlaceholder()} className="px-4 py-2 hover:bg-white hover:shadow-md rounded-xl text-blue-600 flex items-center gap-2 transition-all" title="Add Variable Field">
-              <Tags size={18} /> <span className="text-[10px] font-black uppercase tracking-tight text-blue-700">Field</span>
+            <button onClick={() => addPlaceholder()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-blue-600 flex items-center gap-1.5 transition-all" title="Add Variable Field">
+              <Tags size={16} /> <span className="text-[9px] font-black uppercase hidden lg:inline">Field</span>
             </button>
-            <button onClick={() => addPhotoFrame()} className="px-4 py-2 hover:bg-white hover:shadow-md rounded-xl text-indigo-600 flex items-center gap-2 transition-all" title="Add Photo Slot">
-              <UserSquare size={18} /> <span className="text-[10px] font-black uppercase tracking-tight text-indigo-700">Photo</span>
+            <button onClick={() => addPhotoFrame()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-indigo-600 flex items-center gap-1.5 transition-all" title="Add Photo Slot">
+              <UserSquare size={16} /> <span className="text-[9px] font-black uppercase hidden lg:inline">Photo</span>
             </button>
-            <div className="w-px h-5 bg-slate-200 mx-1" />
-            <button onClick={() => addRect()} className="p-2 hover:bg-white hover:shadow-md rounded-xl text-slate-700 transition-all" title="Rectangle">
-              <Square size={20} />
-            </button>
-            <button onClick={() => addLine()} className="p-2 hover:bg-white hover:shadow-md rounded-xl text-slate-700 transition-all" title="Line">
-              <Minimize2 size={20} className="rotate-45" />
-            </button>
-            <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-white hover:shadow-md rounded-xl text-slate-700 transition-all" title="Upload Image">
-              <ImageIcon size={20} />
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) {
-                    const reader = new FileReader()
-                    reader.onload = (f) => {
-                      if (f.target?.result) addImage(f.target.result as string)
-                    }
-                    reader.readAsDataURL(file)
-                  }
-                }}
-              />
+            <div className="w-px h-4 bg-slate-200 mx-0.5" />
+            <button onClick={() => addRect()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-700 transition-all" title="Rectangle"><Square size={16} /></button>
+            <button onClick={() => addLine()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-700 transition-all" title="Line"><Minimize2 size={16} className="rotate-45" /></button>
+            <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-700 transition-all" title="Upload Image">
+              <ImageIcon size={16} />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
+                const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = (f) => { if (f.target?.result) addImage(f.target.result as string) }; reader.readAsDataURL(file) }
+              }} />
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1 border border-slate-200">
-             <button onClick={handleZoomOut} className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all" title="Zoom Out"><ZoomOut size={16} /></button>
-             <button onClick={handleZoomFit} className="px-3 py-1.5 hover:bg-white rounded-xl text-slate-700 text-[10px] font-black uppercase transition-all flex items-center gap-2 shadow-none hover:shadow-sm"><Maximize size={14} /> Center View</button>
-             <button onClick={handleZoomIn} className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all" title="Zoom In"><ZoomIn size={16} /></button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-slate-100 rounded-xl p-0.5 gap-0.5 border border-slate-200">
+             <button onClick={handleZoomFit} className="px-2 py-1.5 hover:bg-white rounded-lg text-slate-700 text-[9px] font-black uppercase transition-all flex items-center gap-1 shadow-none hover:shadow-sm"><Maximize size={12} /> Fit</button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <input
               type="text"
               value={layoutName}
               onChange={(e) => setLayoutName(e.target.value)}
-              className="font-bold text-slate-800 border border-slate-200 focus:ring-2 focus:ring-blue-500 w-48 bg-slate-50 rounded-xl px-4 py-2 h-11 text-sm transition-all shadow-inner"
-              placeholder="Layout Name..."
+              className="font-bold text-slate-800 border border-slate-200 focus:ring-2 focus:ring-blue-500 w-32 bg-slate-50 rounded-lg px-2 py-1.5 h-8 text-[11px] transition-all"
+              placeholder="Name..."
             />
             <button
               onClick={() => setShowTemplateManager(true)}
-              className="p-3 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 bg-white transition-all shadow-sm active:scale-95"
-              title="Template Library"
+              className="p-1.5 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 bg-white transition-all shadow-sm"
+              title="Templates"
             >
-              <Settings2 size={20} />
+              <Settings2 size={16} />
             </button>
           </div>
 
-          <button onClick={handleSave} className="bg-blue-600 text-white px-6 py-3 rounded-xl flex items-center gap-3 font-black uppercase tracking-widest text-[11px] hover:bg-blue-700 transition shadow-xl shadow-blue-200 active:scale-95">
-            <Save size={20} /> Save Changes
+          <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-black uppercase tracking-wider text-[10px] hover:bg-blue-700 transition shadow-lg shadow-blue-200 active:scale-95">
+            <Save size={16} /> Save
           </button>
         </div>
       </div>
@@ -375,33 +492,33 @@ const Design: React.FC = () => {
         </div>
 
         {/* Properties Panel - Sleek Dark Mode Interface */}
-        <div className="w-80 bg-white border-l shadow-2xl z-20 flex flex-col">
-          <div className="p-8 border-b bg-slate-50/50 flex items-center justify-between">
-            <h3 className="font-black text-slate-800 uppercase text-[11px] tracking-[0.2em]">Properties</h3>
-            {selectedObject && <span className="text-[10px] font-bold bg-slate-200 px-2 py-1 rounded-md text-slate-600 uppercase tracking-tighter">{selectedObject.type}</span>}
+        <div className="w-72 bg-white border-l shadow-2xl z-20 flex flex-col">
+          <div className="p-6 border-b bg-slate-50/50 flex items-center justify-between">
+            <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em]">Properties</h3>
+            {selectedObject && <span className="text-[9px] font-bold bg-slate-200 px-2 py-0.5 rounded-md text-slate-600 uppercase tracking-tighter">{selectedObject.type}</span>}
           </div>
 
-          <div className="flex-1 overflow-auto p-8 space-y-8">
+          <div className="flex-1 overflow-auto p-6 space-y-6">
             {selectedObject ? (
-              <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+              <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                 {selectedObject.text !== undefined && (
                   <>
-                    <div className="space-y-3">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Text Content</label>
+                    <div className="space-y-2">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Text Content</label>
                       <textarea
                         value={selectedObject.text}
                         onChange={(e) => updateSelected('text', e.target.value)}
-                        className="w-full border border-slate-200 rounded-2xl p-4 text-sm h-32 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm bg-slate-50"
+                        className="w-full border border-slate-200 rounded-xl p-3 text-sm h-24 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm bg-slate-50"
                       />
                     </div>
-                    <div className="space-y-3">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Typography</label>
+                    <div className="space-y-2">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Typography</label>
                       <select
                         value={FONTS.includes(selectedObject.fontFamily) ? selectedObject.fontFamily : 'Custom'}
                         onChange={(e) => {
                           if (e.target.value !== 'Custom') updateSelected('fontFamily', e.target.value)
                         }}
-                        className="w-full border border-slate-200 rounded-2xl p-3 text-sm bg-white shadow-sm font-medium"
+                        className="w-full border border-slate-200 rounded-xl p-2 text-sm bg-white shadow-sm font-medium"
                       >
                         {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
                         <option value="Custom">Custom / System Font...</option>
@@ -410,18 +527,18 @@ const Design: React.FC = () => {
                   </>
                 )}
 
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Size</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Size</label>
                     <input
                       type="number"
                       value={Math.round(selectedObject.fontSize || 0)}
                       onChange={(e) => updateSelected('fontSize', Number(e.target.value))}
-                      className="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                      className="w-full border border-slate-200 rounded-xl p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold"
                     />
                   </div>
-                  <div className="space-y-3">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Color</label>
+                  <div className="space-y-2">
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Color</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
@@ -445,13 +562,13 @@ const Design: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Stroke</label>
+                  <div className="space-y-2">
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Stroke</label>
                     <input
                       type="number"
                       value={selectedObject.strokeWidth || 0}
                       onChange={(e) => updateSelected('strokeWidth', Number(e.target.value))}
-                      className="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                      className="w-full border border-slate-200 rounded-xl p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold"
                     />
                   </div>
                 </div>
@@ -565,11 +682,11 @@ const Design: React.FC = () => {
                  </button>
               </div>
 
-              <div className="flex-1 overflow-auto p-12 bg-white">
+              <div className="flex-1 overflow-auto p-8 bg-white">
                  {savedLayouts.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                        {savedLayouts.map(l => (
-                          <div key={l.id} className="group border-2 border-slate-100 hover:border-blue-600 rounded-[2.5rem] p-8 transition-all hover:shadow-2xl hover:shadow-blue-100 flex flex-col justify-between bg-slate-50/30 hover:bg-white relative overflow-hidden">
+                          <div key={l.id} className="group border-2 border-slate-100 hover:border-blue-600 rounded-[2rem] p-6 transition-all hover:shadow-xl hover:shadow-blue-100 flex flex-col justify-between bg-slate-50/30 hover:bg-white relative overflow-hidden">
                              <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
                                 <button onClick={() => handleDownloadLayout(l)} className="p-2.5 bg-white shadow-md border rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Export JSON"><Download size={20} /></button>
                                 <button onClick={() => handleRenameLayout(l)} className="p-2.5 bg-white shadow-md border rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Rename"><Pencil size={20} /></button>
