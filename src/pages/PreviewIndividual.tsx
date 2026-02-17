@@ -11,6 +11,7 @@ interface PreviewIndividualProps {
 const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }) => {
   const [students, setStudents] = useState<any[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [batchName, setBatchName] = useState('Batch')
   const [layouts, setLayouts] = useState<any[]>([])
   const [selectedLayoutId, setSelectedLayoutId] = useState<number | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -35,8 +36,13 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
       setLayouts(l)
 
       const batch = b.find((item: any) => item.id === batchId)
-      if (batch && batch.layoutId) {
-          setSelectedLayoutId(batch.layoutId)
+      if (batch) {
+          setBatchName(batch.name)
+          if (batch.layoutId) {
+              setSelectedLayoutId(batch.layoutId)
+          } else if (l.length > 0) {
+              setSelectedLayoutId(l[0].id)
+          }
       } else if (l.length > 0) {
           setSelectedLayoutId(l[0].id)
       }
@@ -274,7 +280,8 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                 onClick={() => {
                     if (!previewUrl) return
                     const link = document.createElement('a')
-                    link.download = `Preview_${currentStudent?.admNo}.png`
+                    const safeBatchName = batchName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+                    link.download = `${safeBatchName}_${currentIndex + 1}.png`
                     link.href = previewUrl
                     link.click()
                 }}
@@ -305,25 +312,27 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                       </button>
                   </div>
 
-                  <div className="flex-1 overflow-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                          <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Text Information</div>
-                          <div className="grid grid-cols-1 gap-4">
+                  <div className="flex-1 overflow-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div className="space-y-6">
+                          <div className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-4">
+                             <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Textual Identity Data
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
                             {Object.entries(editData).filter(([k]) => !k.startsWith('_')).map(([key, value]) => (
-                                <div key={key} className="space-y-1">
-                                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">{key}</label>
+                                <div key={key} className="space-y-1.5 group">
+                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 group-focus-within:text-blue-400 transition-colors">{key}</label>
                                     <input
                                         type="text"
                                         value={String(value)}
                                         onChange={(e) => setEditData({ ...editData, [key]: e.target.value })}
-                                        className="w-full bg-slate-800 border-none rounded-xl px-4 py-2 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500 focus:bg-slate-950 outline-none transition-all"
                                     />
                                 </div>
                             ))}
                           </div>
                       </div>
 
-                      <div className="space-y-6">
+                      <div className="space-y-8">
                           <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Photo Adjustment</div>
 
                           <div className="aspect-square bg-slate-800 rounded-3xl overflow-hidden border border-white/5 relative group">
@@ -386,18 +395,18 @@ const PreviewIndividual: React.FC<PreviewIndividualProps> = ({ batchId, onExit }
                       </div>
                   </div>
 
-                  <div className="p-8 border-t border-white/5 flex gap-4">
+                  <div className="p-6 md:p-8 border-t border-white/5 bg-slate-900/50 backdrop-blur-md flex flex-col sm:flex-row gap-4">
                       <button
                         onClick={handleSaveEdit}
-                        className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-3"
+                        className="flex-[2] bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-xl shadow-blue-900/20 active:scale-[0.98]"
                       >
-                          <Save size={18} /> Save Changes
+                          <Save size={18} /> Commit Changes
                       </button>
                       <button
                         onClick={() => setIsEditing(false)}
-                        className="px-8 bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all"
+                        className="flex-1 bg-white/5 hover:bg-white/10 text-slate-300 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all border border-white/10"
                       >
-                          Cancel
+                          Discard
                       </button>
                   </div>
               </div>

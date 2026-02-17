@@ -4,7 +4,7 @@ import DesignCanvas from '../components/DesignCanvas'
 import { useCanvasActions } from '../hooks/useCanvasActions'
 import {
   Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2,
-  MoveUp, MoveDown, UserSquare, Bold, Italic, FileUp, ZoomIn, ZoomOut,
+  MoveUp, MoveDown, UserSquare, Bold, Italic, FileUp,
   Maximize, Settings2, Download, Trash, X, MousePointer2, Grid3X3,
   Underline as UnderlineIcon, Pencil, Magnet, LayoutTemplate, Undo2, Redo2, Copy
 } from 'lucide-react'
@@ -59,7 +59,13 @@ const Design: React.FC = () => {
       isRedoing.current = true
       const prevState = history[historyIndex - 1]
       await canvas.loadFromJSON(prevState)
-      canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+
+      const WORKSPACE_SIZE = 3000
+      canvas.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE })
+      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
+      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
+      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
+
       if (canvas.ensureGuides) canvas.ensureGuides()
       canvas.renderAll()
       setHistoryIndex(historyIndex - 1)
@@ -72,7 +78,13 @@ const Design: React.FC = () => {
       isRedoing.current = true
       const nextState = history[historyIndex + 1]
       await canvas.loadFromJSON(nextState)
-      canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+
+      const WORKSPACE_SIZE = 3000
+      canvas.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE })
+      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
+      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
+      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
+
       if (canvas.ensureGuides) canvas.ensureGuides()
       canvas.renderAll()
       setHistoryIndex(historyIndex + 1)
@@ -109,12 +121,18 @@ const Design: React.FC = () => {
     canvas.on('object:added', handleCanvasChange)
     canvas.on('object:removed', handleCanvasChange)
     canvas.on('path:created', handleCanvasChange)
+    canvas.on('object:scaling', handleCanvasChange)
+    canvas.on('object:rotating', handleCanvasChange)
+    canvas.on('object:skewing', handleCanvasChange)
 
     return () => {
       canvas.off('object:modified', handleCanvasChange)
       canvas.off('object:added', handleCanvasChange)
       canvas.off('object:removed', handleCanvasChange)
       canvas.off('path:created', handleCanvasChange)
+      canvas.off('object:scaling', handleCanvasChange)
+      canvas.off('object:rotating', handleCanvasChange)
+      canvas.off('object:skewing', handleCanvasChange)
     }
   }, [canvas, layoutName])
 
@@ -131,7 +149,12 @@ const Design: React.FC = () => {
 
     if (draft && canvas.getObjects().filter((obj: any) => !obj.isGuide).length === 0) {
       canvas.loadFromJSON(draft).then(() => {
-          canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+          const WORKSPACE_SIZE = 3000
+          canvas.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE })
+          const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
+          const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
+          canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
+
           if (canvas.ensureGuides) canvas.ensureGuides()
           if (savedName) setLayoutName(savedName)
           canvas.renderAll()
@@ -153,10 +176,16 @@ const Design: React.FC = () => {
     if (!canvas) return
     const loadToast = toast.loading('Loading layout...')
     try {
+      // Explicitly clear before loading
+      canvas.clear()
       await canvas.loadFromJSON(layout.content)
 
-      // Force standard dimensions in case the layout was saved with wrong ones
-      canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
+      // Restore workspace dimensions and viewport transform after loading
+      const WORKSPACE_SIZE = 3000
+      canvas.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE })
+      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
+      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
+      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
 
       // Re-add guides after loading JSON as loadFromJSON clears everything
       if (canvas.ensureGuides) {
@@ -301,14 +330,6 @@ const Design: React.FC = () => {
       type: activeObject.type, // Explicitly include type
       _actual: activeObject
     })
-  }
-
-  const handleZoomIn = () => {
-    toast('Scale is auto-optimized for your workspace')
-  }
-
-  const handleZoomOut = () => {
-    toast('Scale is auto-optimized for your workspace')
   }
 
   const handleZoomFit = () => {

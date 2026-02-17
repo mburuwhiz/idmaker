@@ -8,6 +8,8 @@ interface DesignCanvasProps {
   snapToGrid?: boolean
 }
 
+const WORKSPACE_SIZE = 3000 // Large enough to see anything far off-canvas
+
 const DesignCanvas: React.FC<DesignCanvasProps> = ({
   onCanvasReady
 }) => {
@@ -19,13 +21,16 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   useEffect(() => {
     if (canvasRef.current && containerRef.current && !fabricCanvasRef.current) {
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: CR80_WIDTH_PX,
-        height: CR80_HEIGHT_PX,
-        backgroundColor: '#ffffff',
+        width: WORKSPACE_SIZE,
+        height: WORKSPACE_SIZE,
+        backgroundColor: '#0f172a', // Dark workspace background
         preserveObjectStacking: true,
       })
 
-      // No strict clipping during design to allow off-canvas interaction
+      // Center the CR80 card area in the large workspace
+      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
+      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
+      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
 
       // Ensure guides function
       const ensureGuides = () => {
@@ -33,6 +38,28 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         objects.forEach((obj: any) => {
           if ((obj as any).isGuide) canvas.remove(obj)
         })
+
+        // Card Background (Visual representation of the ID)
+        const cardBg = new fabric.Rect({
+            left: 0,
+            top: 0,
+            width: CR80_WIDTH_PX,
+            height: CR80_HEIGHT_PX,
+            fill: '#ffffff',
+            selectable: false,
+            evented: false,
+            excludeFromExport: true,
+            shadow: new fabric.Shadow({
+                color: 'rgba(0,0,0,0.5)',
+                blur: 30,
+                offsetX: 0,
+                offsetY: 10
+            })
+        })
+        // @ts-ignore
+        cardBg.isGuide = true
+        canvas.add(cardBg)
+        canvas.sendObjectToBack(cardBg)
 
         // Safe Margin Guide
         const safeMargin = new fabric.Rect({
@@ -67,20 +94,20 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       }
     }
 
-    // Auto-scaling logic - optimized for landscape
+    // Auto-scaling logic - optimized to fit the CARD in view, but allowing space around it
     const updateScale = () => {
       if (!containerRef.current) return
-      const padding = 80 // Reduced padding for better visibility
+      const padding = 120 // Space around the card to see off-canvas objects
       const { clientWidth, clientHeight } = containerRef.current
 
-      const availableWidth = clientWidth - padding
-      const availableHeight = clientHeight - padding
+      // We want the card + padding to fit
+      const targetWidth = CR80_WIDTH_PX + padding * 2
+      const targetHeight = CR80_HEIGHT_PX + padding * 2
 
-      const scaleX = availableWidth / CR80_WIDTH_PX
-      const scaleY = availableHeight / CR80_HEIGHT_PX
+      const scaleX = clientWidth / targetWidth
+      const scaleY = clientHeight / targetHeight
 
-      // Allow the card to scale up more on large screens for "perfection"
-      const newScale = Math.min(scaleX, scaleY, 2.5)
+      const newScale = Math.min(scaleX, scaleY, 2.0)
       setScale(newScale)
     }
 
@@ -93,27 +120,22 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
   return (
     <div ref={containerRef} className="w-full h-full bg-slate-950 overflow-hidden relative flex items-center justify-center">
-      {/* Sophisticated Background patterns */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)', backgroundSize: '100px 100px' }}></div>
-      <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-
-      {/* Centered Workspace Container with "Fixed Page" feel */}
+      {/* Centered Workspace Container */}
       <div
-        className="shadow-[0_0_150px_rgba(0,0,0,0.9)] border-[20px] border-slate-900 rounded-[2.5rem] bg-white transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1)"
+        className="transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1)"
         style={{
-            width: CR80_WIDTH_PX,
-            height: CR80_HEIGHT_PX,
+            width: WORKSPACE_SIZE,
+            height: WORKSPACE_SIZE,
             transform: `scale(${scale})`,
             transformOrigin: 'center center',
-            flexShrink: 0,
-            outline: '1px solid rgba(255,255,255,0.1)'
+            flexShrink: 0
         }}
       >
         <canvas ref={canvasRef} />
       </div>
 
       {/* Info Overlay */}
-      <div className="absolute bottom-10 left-10 flex flex-col gap-3 pointer-events-none">
+      <div className="absolute bottom-10 left-10 flex flex-col gap-3 pointer-events-none z-20">
         <div className="bg-blue-600/90 text-white text-[10px] px-4 py-2 rounded-xl backdrop-blur-md uppercase font-black tracking-[0.2em] shadow-2xl border border-white/20">
           Landscape Mode: 86 x 54 mm
         </div>

@@ -122,12 +122,29 @@ export function setupIpc() {
         for (const row of data as any[]) {
           // Process dates to DD/MM/YYYY string format
           for (const key in row) {
-            if (row[key] instanceof Date) {
-              const d = row[key]
+            const val = row[key]
+            if (val instanceof Date) {
+              const d = val
               const day = String(d.getDate()).padStart(2, '0')
               const month = String(d.getMonth() + 1).padStart(2, '0')
               const year = d.getFullYear()
               row[key] = `${day}/${month}/${year}`
+            } else if (typeof val === 'number' && val > 30000 && val < 60000) {
+              // Potential Excel date serial number (range approx 1982 to 2064)
+              // Use XLSX.SSF to format if possible, otherwise it stays a number
+              try {
+                // Excel dates are floating point; if it has a decimal it might be a date-time
+                // But the user specifically mentioned 01/12/2000 appearing as 38362
+                const date = XLSX.SSF.parse_date_code(val)
+                if (date && date.y > 1900) {
+                  const day = String(date.d).padStart(2, '0')
+                  const month = String(date.m).padStart(2, '0')
+                  const year = date.y
+                  row[key] = `${day}/${month}/${year}`
+                }
+              } catch (e) {
+                // Not a valid date format, ignore
+              }
             }
           }
 
@@ -251,7 +268,7 @@ export function setupIpc() {
     }
 
     const bundle = {
-      version: '1.1.0', // Incremented version
+      version: '2.0.0', // Incremented version for binary format
       batch: {
         name: batch.name,
         layout: layout ? { name: layout.name, content: layout.content } : null
@@ -277,9 +294,13 @@ export function setupIpc() {
     })
 
     if (savePath) {
-      // Use gzip compression to reduce size and satisfy "NOT JSON" requirement (binary bundle)
-      const buffer = zlib.gzipSync(JSON.stringify(bundle))
-      fs.writeFileSync(savePath, buffer)
+      // Binary header to identify the file
+      const MAGIC = Buffer.from('WID2')
+      const jsonContent = JSON.stringify(bundle)
+      const compressed = zlib.gzipSync(jsonContent)
+      const finalBuffer = Buffer.concat([MAGIC, compressed])
+
+      fs.writeFileSync(savePath, finalBuffer)
       return savePath
     }
     return null
@@ -296,13 +317,24 @@ export function setupIpc() {
     let bundle: any
 
     try {
-      // Try decompressing first
-      const decompressed = zlib.gunzipSync(buffer).toString('utf-8')
-      bundle = JSON.parse(decompressed)
+      // Check for MAGIC header
+      const magic = buffer.slice(0, 4).toString()
+      if (magic === 'WID2') {
+        const decompressed = zlib.gunzipSync(buffer.slice(4)).toString('utf-8')
+        bundle = JSON.parse(decompressed)
+      } else {
+        // Fallback for older formats (direct gzip or plain JSON)
+        try {
+          const decompressed = zlib.gunzipSync(buffer).toString('utf-8')
+          bundle = JSON.parse(decompressed)
+        } catch (e) {
+          const content = buffer.toString('utf-8')
+          bundle = JSON.parse(content)
+        }
+      }
     } catch (e) {
-      // Fallback for older uncompressed JSON WID files
-      const content = buffer.toString('utf-8')
-      bundle = JSON.parse(content)
+      console.error('[IPC] Failed to parse .wid file:', e)
+      throw new Error('Invalid or corrupted .wid file')
     }
 
     const batchName = `${bundle.batch.name} (Imported)`

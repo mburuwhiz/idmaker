@@ -136,7 +136,7 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     if (cloned.type === 'activeSelection') {
       // active selection needs a reference to the canvas.
       cloned.canvas = canvas
-      cloned.forEachObject((obj: any) => {
+      ;(cloned as fabric.ActiveSelection).forEachObject((obj: any) => {
         canvas.add(obj)
       })
       // this behaves as if the objects were selected
