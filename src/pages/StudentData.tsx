@@ -144,7 +144,9 @@ const StudentData: React.FC<StudentDataProps> = ({ initialBatchId = null }) => {
                        ))}
                     </div>
                   ) : (
-                    <span className="font-medium text-gray-900">{student.data.NAME || 'N/A'}</span>
+                    <span className="font-medium text-gray-900">
+                      {(Object.keys(student.data).find(k => k.trim().toUpperCase() === 'NAME') ? student.data[Object.keys(student.data).find(k => k.trim().toUpperCase() === 'NAME')!] : null) || 'N/A'}
+                    </span>
                   )}
                 </td>
                 <td className="px-6 py-4">

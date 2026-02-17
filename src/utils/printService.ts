@@ -36,9 +36,14 @@ export async function renderCard(
   const objects = [...canvas.getObjects()]
 
   for (const obj of objects as any[]) {
-    // Hide any individual photo text/placeholder guides if they escape their groups
-    if (obj.isPhotoText || obj.get?.('isPhotoText')) {
+    // Aggressive hiding of photo guides and placeholder text
+    if (
+      obj.isPhotoText ||
+      obj.get?.('isPhotoText') ||
+      (obj.text && obj.text.trim().toUpperCase() === 'PHOTO')
+    ) {
       obj.set('visible', false)
+      obj.set('opacity', 0)
     }
 
     // Replace text placeholders (support multiple placeholders and handle spaces/casing)
@@ -71,19 +76,23 @@ export async function renderCard(
       }
     }
 
-    // Handle Photo Placeholder
-    if (obj.isPhotoPlaceholder) {
+    // Handle Photo Placeholder (Robust detection)
+    const isPhotoPlaceholder =
+      obj.isPhotoPlaceholder ||
+      obj.get?.('isPhotoPlaceholder') ||
+      (obj.type === 'group' && (obj as fabric.Group).getObjects().some((c: any) => c.text && c.text.trim().toUpperCase() === 'PHOTO'))
+
+    if (isPhotoPlaceholder) {
       // Always hide the "PHOTO" text guide during printing/export
       const children = obj.getObjects ? obj.getObjects() : (obj._objects || [])
       children.forEach((child: any) => {
-        // Fallback check for text content 'PHOTO' to be safe
         if (child.isPhotoText || child.get?.('isPhotoText') || (child.text && child.text.trim().toUpperCase() === 'PHOTO')) {
           child.set('visible', false)
-          child.set('opacity', 0) // Extra safety
+          child.set('opacity', 0)
         }
       })
 
-      if (photoData) {
+      if (photoData && photoData.length > 50) { // Ensure we have a real base64/dataURL
         // Use scaled dimensions to handle resized placeholders
         const visualWidth = obj.getScaledWidth()
         const visualHeight = obj.getScaledHeight()

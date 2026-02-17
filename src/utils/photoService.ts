@@ -5,6 +5,9 @@ export async function processPhoto(source: string | ArrayBuffer, width: number, 
     const img = new Image()
     img.onload = async () => {
       try {
+        if (!img.width || !img.height) {
+          throw new Error('Loaded image has no dimensions')
+        }
         console.log(`[PhotoService] Processing image of size ${img.width}x${img.height} for target ${width}x${height}`)
 
         // If image is very small or smartcrop fails, we still want to show something
@@ -65,7 +68,7 @@ export async function processPhoto(source: string | ArrayBuffer, width: number, 
       reject(new Error('Failed to load image for processing'))
     }
 
-    if (typeof source === 'string') {
+    if (typeof source === 'string' && source.length > 0) {
       if (source.startsWith('data:')) {
         img.src = source
       } else {
