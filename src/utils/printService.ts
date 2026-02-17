@@ -27,6 +27,9 @@ export async function renderCard(
   // @ts-ignore
   await canvas.loadFromJSON(layoutJson)
 
+  // Ensure print background is white, ignoring designer workspace color
+  canvas.backgroundColor = '#ffffff'
+
   const objects = [...canvas.getObjects()]
 
   for (const obj of objects as any[]) {

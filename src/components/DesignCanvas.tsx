@@ -18,13 +18,35 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
 
   const ensureGuides = (canvas: fabric.Canvas) => {
-    // Remove existing guides to avoid duplicates
+    // Remove existing guides
     const objects = canvas.getObjects()
     objects.forEach((obj: any) => {
       if (obj.isGuide) canvas.remove(obj)
     })
 
-    // Add Safe Margin Guide
+    // 1. The Page Background (The actual card area)
+    const pageBg = new fabric.Rect({
+      left: 0,
+      top: 0,
+      width: CR80_WIDTH_PX,
+      height: CR80_HEIGHT_PX,
+      fill: '#ffffff',
+      selectable: false,
+      evented: false,
+      excludeFromExport: true,
+      shadow: new fabric.Shadow({
+        color: 'rgba(0,0,0,0.5)',
+        blur: 30,
+        offsetX: 0,
+        offsetY: 10
+      })
+    })
+    // @ts-ignore
+    pageBg.isGuide = true
+    canvas.add(pageBg)
+    canvas.sendObjectToBack(pageBg)
+
+    // 2. Safe Margin Guide
     const safeMargin = new fabric.Rect({
       left: SAFE_MARGIN_PX,
       top: SAFE_MARGIN_PX,
@@ -50,29 +72,29 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   useEffect(() => {
     if (canvasRef.current && containerRef.current && !fabricCanvasRef.current) {
       const container = containerRef.current
+      const width = container.clientWidth
+      const height = container.clientHeight
 
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: CR80_WIDTH_PX,
-        height: CR80_HEIGHT_PX,
-        backgroundColor: '#ffffff',
+        width: width,
+        height: height,
+        backgroundColor: '#0f172a', // Dark workspace
         preserveObjectStacking: true,
       })
 
-      // Strict clipping to the card area
+      // Strict clipping to the card area (0,0 to 1016,638)
       canvas.clipPath = new fabric.Rect({
         left: 0,
         top: 0,
         width: CR80_WIDTH_PX,
         height: CR80_HEIGHT_PX,
-        absolutePositioned: true
+        absolutePositioned: false // Moves with viewport pan/zoom
       })
 
       // @ts-ignore
       canvas.ensureGuides = () => ensureGuides(canvas)
 
-      // Use Fabric's internal zoom and pan to make it feel like a workspace
-      // but the "Page" is always the card.
-
+      // Mouse wheel zoom
       canvas.on('mouse:wheel', (opt) => {
         const delta = opt.e.deltaY
         let zoom = canvas.getZoom()
@@ -84,6 +106,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         opt.e.stopPropagation()
       })
 
+      // Panning logic
       canvas.on('mouse:down', (opt) => {
         const evt = opt.e as any
         if (evt.altKey || evt.button === 1) {
@@ -119,9 +142,12 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         canvas.selection = true
       })
 
-      // Handle window resize by adjusting the viewport only, not the canvas size
-      const resizeObserver = new ResizeObserver(() => {
-          canvas.calcOffset()
+      // Resize observer
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+            canvas.setDimensions({ width: entry.contentRect.width, height: entry.contentRect.height })
+            canvas.calcOffset()
+        }
       })
       resizeObserver.observe(container)
 
@@ -132,12 +158,17 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       if (onCanvasReady) {
         onCanvasReady(canvas)
       }
+
+      // Initial Centering
+      const vpt = canvas.viewportTransform!
+      vpt[4] = (width - CR80_WIDTH_PX) / 2
+      vpt[5] = (height - CR80_HEIGHT_PX) / 2
+      canvas.requestRenderAll()
     }
 
     const canvas = fabricCanvasRef.current
     if (canvas) {
       const gridPx = mmToPx(1)
-
       const handleMoving = (opt: any) => {
         if (snapToGrid) {
           opt.target.set({
@@ -146,9 +177,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
           })
         }
       }
-
       canvas.on('object:moving', handleMoving)
-
       return () => {
         canvas.off('object:moving', handleMoving)
       }
@@ -165,12 +194,8 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [])
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-slate-950 overflow-hidden relative flex items-center justify-center p-20">
-      <div className="shadow-[0_0_100px_rgba(0,0,0,0.8)] border-8 border-slate-900 rounded-lg overflow-hidden">
-        <canvas ref={canvasRef} />
-      </div>
-
-      {/* Zoom indicator overlay */}
+    <div ref={containerRef} className="w-full h-full bg-slate-900 overflow-hidden relative">
+      <canvas ref={canvasRef} />
       <div className="absolute bottom-6 right-6 flex flex-col gap-2 items-end pointer-events-none">
         <div className="bg-slate-900/80 text-white text-[9px] px-3 py-1.5 rounded-full backdrop-blur-md uppercase font-black tracking-[0.1em] shadow-xl border border-white/10">
           Middle Click or Alt+Drag to Pan • Scroll to Zoom

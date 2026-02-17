@@ -69,7 +69,9 @@ const Design: React.FC = () => {
       objects.forEach((obj: any) => {
         if (!obj.isGuide) canvas.remove(obj)
       })
-      canvas.backgroundColor = '#ffffff'
+      canvas.backgroundColor = '#0f172a' // Reset to dark workspace
+      if (canvas.ensureGuides) canvas.ensureGuides()
+
       setLayoutName('New Layout')
       canvas.renderAll()
       toast.success('New layout started')
@@ -159,46 +161,30 @@ const Design: React.FC = () => {
 
   const handleZoomIn = () => {
     if (!canvas) return
-    const newZoom = canvas.getZoom() * 1.1
-    canvas.setDimensions({
-        width: Math.round(CR80_WIDTH_PX * newZoom),
-        height: Math.round(CR80_HEIGHT_PX * newZoom)
-    })
-    canvas.setZoom(newZoom)
+    canvas.setZoom(canvas.getZoom() * 1.1)
   }
 
   const handleZoomOut = () => {
     if (!canvas) return
-    const newZoom = canvas.getZoom() / 1.1
-    canvas.setDimensions({
-        width: Math.round(CR80_WIDTH_PX * newZoom),
-        height: Math.round(CR80_HEIGHT_PX * newZoom)
-    })
-    canvas.setZoom(newZoom)
+    canvas.setZoom(canvas.getZoom() / 1.1)
   }
 
   const handleZoomFit = () => {
     if (!canvas || !canvas.getElement()) return
-    // The canvas wrapper is nested under the DesignCanvas containerRef
-    const workspace = canvas.getElement().parentElement?.parentElement?.parentElement
+    const workspace = canvas.getElement().parentElement?.parentElement
     if (!workspace) return
 
-    const padding = 160
+    const padding = 120
     const scaleX = (workspace.clientWidth - padding) / CR80_WIDTH_PX
     const scaleY = (workspace.clientHeight - padding) / CR80_HEIGHT_PX
-    const zoom = Math.min(scaleX, scaleY, 1) // Max 100% for perfection
+    const zoom = Math.min(scaleX, scaleY, 2)
 
-    // Adjust canvas element dimensions to match zoom
-    canvas.setDimensions({
-        width: Math.round(CR80_WIDTH_PX * zoom),
-        height: Math.round(CR80_HEIGHT_PX * zoom)
-    })
     canvas.setZoom(zoom)
 
-    // Reset pan
+    // Center the 0,0-1016,638 card in the workspace
     const vpt = canvas.viewportTransform!
-    vpt[4] = 0
-    vpt[5] = 0
+    vpt[4] = (workspace.clientWidth - CR80_WIDTH_PX * zoom) / 2
+    vpt[5] = (workspace.clientHeight - CR80_HEIGHT_PX * zoom) / 2
 
     canvas.requestRenderAll()
   }
