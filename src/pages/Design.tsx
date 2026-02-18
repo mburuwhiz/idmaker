@@ -46,7 +46,8 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
     if (!c || isRedoing.current) return
     const json = JSON.stringify(c.toJSON([
       'isPlaceholder', 'isPhotoPlaceholder', 'isPhotoFrame', 'isPhotoText',
-      'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'selectable', 'underline'
+      'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'selectable', 'underline',
+      'stroke', 'fill', 'strokeWidth'
     ]))
 
     setHistory(prev => {
@@ -62,12 +63,18 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
   const restoreWorkspace = (c: any) => {
     if (!c) return;
     const WORKSPACE_SIZE = 3000;
-    // Always force dimensions and VT to ensure centering
+
+    // Always force dimensions to ensure the workspace is large
     c.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE });
+
+    // Calculate exact offset to center the CR80 card (1016x638) in the 3000px workspace
     const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2;
     const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2;
+
+    // Force the viewport transform to center the card origin (0,0)
     c.setViewportTransform([1, 0, 0, 1, offsetX, offsetY]);
-    // Ensure background remains clean and guides are present
+
+    // Clean up workspace appearance
     c.backgroundColor = '#f1f5f9';
     if (c.ensureGuides) c.ensureGuides();
     c.renderAll();
@@ -97,7 +104,16 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
 
   // Layout Persistence: Save draft to localStorage
   const saveDraft = (c: any) => {
-    if (!c) return
+    if (!c || isRedoing.current) return
+
+    // Store current state for restoration
+    const originalDim = { width: c.width, height: c.height };
+    const originalVpt = c.viewportTransform ? [...c.viewportTransform] : [1, 0, 0, 1, 0, 0];
+
+    // Temporarily normalize to card dimensions for consistent coordinate saving
+    c.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    c.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX });
+
     const content = JSON.stringify(c.toJSON([
       'isPlaceholder',
       'isPhotoPlaceholder',
@@ -106,8 +122,14 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
       'fontWeight',
       'fontStyle',
       'fontFamily',
-      'rx', 'ry', 'selectable', 'underline'
+      'rx', 'ry', 'selectable', 'underline',
+      'stroke', 'fill', 'strokeWidth'
     ]));
+
+    // Restore workspace state
+    c.setDimensions(originalDim);
+    c.setViewportTransform(originalVpt);
+
     localStorage.setItem('whizpoint_design_draft', content)
     localStorage.setItem('whizpoint_design_name', layoutName)
   }
@@ -342,7 +364,8 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
         'fontWeight',
         'fontStyle',
         'fontFamily',
-        'rx', 'ry', 'selectable', 'underline'
+        'rx', 'ry', 'selectable', 'underline',
+        'stroke', 'fill', 'strokeWidth'
       ]));
       await window.ipcRenderer.invoke('save-layout', layoutName, content);
       toast.success('Layout saved successfully!', { id: loadToast });

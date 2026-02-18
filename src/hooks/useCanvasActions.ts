@@ -167,7 +167,7 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     const centerX = (minX + maxX) / 2
     const centerY = (minY + maxY) / 2
 
-    // Target center of CR80 card (at 0,0)
+    // Target center of CR80 card (Origin is 0,0)
     import('../utils/units').then(({ CR80_WIDTH_PX, CR80_HEIGHT_PX }) => {
         const targetX = CR80_WIDTH_PX / 2
         const targetY = CR80_HEIGHT_PX / 2
@@ -183,6 +183,8 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
           obj.setCoords()
         })
         canvas.requestRenderAll()
+        // Save draft after centering to persist the fix
+        canvas.fire('object:modified', { target: objects[0] })
     })
   }, [canvas])
 

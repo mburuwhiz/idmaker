@@ -107,10 +107,10 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
             evented: false,
             excludeFromExport: true,
             shadow: new fabric.Shadow({
-                color: 'rgba(0,0,0,0.3)',
-                blur: 60,
+                color: 'rgba(0,0,0,0.15)',
+                blur: 30,
                 offsetX: 0,
-                offsetY: 20
+                offsetY: 10
             })
         })
         // @ts-ignore

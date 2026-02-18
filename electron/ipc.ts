@@ -87,6 +87,10 @@ export function setupIpc() {
     try {
       console.log('[IPC] import-excel called', customBatchName)
 
+      if (!customBatchName) {
+        throw new Error('Batch name is required for import.')
+      }
+
       // Defensively check XLSX library
       if (typeof XLSX.readFile !== 'function') {
         console.error('[IPC] XLSX.readFile is not a function. Current XLSX keys:', Object.keys(XLSX))
@@ -110,7 +114,7 @@ export function setupIpc() {
         throw new Error('Excel file is empty')
       }
 
-      const batchName = customBatchName || `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
+      const batchName = customBatchName
       const batchResult = db.prepare('INSERT INTO batches (name) VALUES (?)').run(batchName)
       const batchId = batchResult.lastInsertRowid
 

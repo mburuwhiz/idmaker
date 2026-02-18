@@ -17,3 +17,14 @@ body {
   width: 100vw;
   height: 100vh;
 }
+
+/* Ensure requested system fonts are explicitly available by name */
+@font-face {
+  font-family: 'Clarendon BT';
+  src: local('Clarendon BT'), local('ClarendonBT');
+}
+
+@font-face {
+  font-family: 'Clarendon Lt BT';
+  src: local('Clarendon Lt BT'), local('ClarendonLtBT');
+}
