@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { FileUp, Play, Table, Camera, Share2, PackageOpen, Trash2, Pencil, Layout } from 'lucide-react'
+import { ConfirmModal, PromptModal } from '../components/Modal'
 
 interface Batch {
   id: number
@@ -18,6 +19,9 @@ interface BatchesProps {
 const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => {
   const [batches, setBatches] = useState<Batch[]>([])
   const [layouts, setLayouts] = useState<any[]>([])
+  const [modal, setModal] = useState<{ type: 'confirm' | 'prompt' | null, title: string, message: string, onConfirm?: (v?: any) => void, initialValue?: string, isDestructive?: boolean, placeholder?: string }>({
+    type: null, title: '', message: ''
+  })
 
   useEffect(() => {
     loadInitialData()
@@ -38,18 +42,30 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
   }
 
   const handleImport = async () => {
-    const loadToast = toast.loading('Importing Excel...')
-    try {
-      const result = await window.ipcRenderer.invoke('import-excel')
-      if (result) {
-        toast.success(`Imported ${result.count} students!`, { id: loadToast })
-        loadBatches()
-      } else {
-        toast.dismiss(loadToast)
+    setModal({
+      type: 'prompt',
+      title: 'Import Excel',
+      message: 'Enter a name for this new batch:',
+      placeholder: 'Batch Name...',
+      onConfirm: async (batchName: string) => {
+        if (!batchName) {
+          toast.error('Batch name is required')
+          return
+        }
+        const loadToast = toast.loading('Importing Excel...')
+        try {
+          const result = await window.ipcRenderer.invoke('import-excel', batchName)
+          if (result) {
+            toast.success(`Imported ${result.count} students into "${batchName}"!`, { id: loadToast })
+            loadBatches()
+          } else {
+            toast.dismiss(loadToast)
+          }
+        } catch (e) {
+          toast.error('Import failed', { id: loadToast })
+        }
       }
-    } catch (e) {
-      toast.error('Import failed', { id: loadToast })
-    }
+    })
   }
 
   const handleMatchPhotos = async (batchId: number) => {
@@ -66,28 +82,41 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
   }
 
   const handleDeleteBatch = async (batchId: number) => {
-    if (confirm('Are you sure you want to delete this batch and all its student records? This cannot be undone.')) {
-      try {
-        await window.ipcRenderer.invoke('delete-batch', batchId)
-        toast.success('Batch deleted')
-        loadBatches()
-      } catch (e) {
-        toast.error('Failed to delete batch')
+    setModal({
+      type: 'confirm',
+      title: 'Delete Batch',
+      message: 'Are you sure you want to delete this batch and all its student records? This cannot be undone.',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          await window.ipcRenderer.invoke('delete-batch', batchId)
+          toast.success('Batch deleted')
+          loadBatches()
+        } catch (e) {
+          toast.error('Failed to delete batch')
+        }
       }
-    }
+    })
   }
 
   const handleRenameBatch = async (batch: Batch) => {
-    const newName = prompt('Enter new name for batch:', batch.name)
-    if (newName && newName !== batch.name) {
-      try {
-        await window.ipcRenderer.invoke('rename-batch', batch.id, newName)
-        toast.success('Batch renamed')
-        loadBatches()
-      } catch (e) {
-        toast.error('Failed to rename batch')
+    setModal({
+      type: 'prompt',
+      title: 'Rename Batch',
+      message: 'Enter new name for the batch:',
+      initialValue: batch.name,
+      onConfirm: async (newName: string) => {
+        if (newName && newName !== batch.name) {
+          try {
+            await window.ipcRenderer.invoke('rename-batch', batch.id, newName)
+            toast.success('Batch renamed')
+            loadBatches()
+          } catch (e) {
+            toast.error('Failed to rename batch')
+          }
+        }
       }
-    }
+    })
   }
 
   const handleUpdateBatchLayout = async (batchId: number, layoutId: number) => {
@@ -108,8 +137,13 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
             onClick={async () => {
               const res = await window.ipcRenderer.invoke('import-batch-wid')
               if (res) {
-                toast.success(`Imported ${res.count} students from .wid file!`)
-                loadBatches()
+                if (res.type === 'layout') {
+                    toast.success('Layout imported successfully! You can find it in the Designer.')
+                    loadInitialData()
+                } else {
+                    toast.success(`Imported ${res.count} students from .wid file!`)
+                    loadBatches()
+                }
               }
             }}
             className="bg-slate-700 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-800 transition"
@@ -204,6 +238,24 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={modal.type === 'confirm'}
+        onClose={() => setModal({ ...modal, type: null })}
+        onConfirm={modal.onConfirm || (() => {})}
+        title={modal.title}
+        message={modal.message}
+        isDestructive={modal.isDestructive}
+      />
+      <PromptModal
+        isOpen={modal.type === 'prompt'}
+        onClose={() => setModal({ ...modal, type: null })}
+        onConfirm={modal.onConfirm || (() => {})}
+        title={modal.title}
+        message={modal.message}
+        initialValue={modal.initialValue}
+        placeholder={modal.placeholder}
+      />
     </div>
   )
 }

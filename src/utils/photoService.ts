@@ -88,9 +88,11 @@ export async function processPhoto(source: string | ArrayBuffer, width: number, 
 
         img.src = `data:${mime};base64,${source}`
       }
-    } else {
+    } else if (source instanceof ArrayBuffer) {
       const uint8Array = new Uint8Array(source)
       img.src = URL.createObjectURL(new Blob([uint8Array]))
+    } else {
+      reject(new Error('Invalid photo source'))
     }
   })
 }

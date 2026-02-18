@@ -83,9 +83,9 @@ export function setupIpc() {
   })
 
   // Specialized Import
-  ipcMain.handle('import-excel', async () => {
+  ipcMain.handle('import-excel', async (_event, customBatchName) => {
     try {
-      console.log('[IPC] import-excel called')
+      console.log('[IPC] import-excel called', customBatchName)
 
       // Defensively check XLSX library
       if (typeof XLSX.readFile !== 'function') {
@@ -110,7 +110,7 @@ export function setupIpc() {
         throw new Error('Excel file is empty')
       }
 
-      const batchName = `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
+      const batchName = customBatchName || `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
       const batchResult = db.prepare('INSERT INTO batches (name) VALUES (?)').run(batchName)
       const batchId = batchResult.lastInsertRowid
 
@@ -274,41 +274,62 @@ export function setupIpc() {
     return db.prepare('UPDATE students SET photoPath = ? WHERE id = ?').run(photoPath, id)
   })
 
-  ipcMain.handle('export-batch-wid', async (_event, batchId) => {
-    const batch = db.prepare('SELECT * FROM batches WHERE id = ?').get(batchId) as any
-    const students = db.prepare('SELECT * FROM students WHERE batchId = ?').all(batchId) as any[]
+  ipcMain.handle('export-batch-wid', async (_event, batchId, singleLayoutId) => {
+    let bundle: any = { version: '2.1.0' }
+    let defaultFilename = 'export.wid'
 
-    if (!batch) return null
+    if (batchId) {
+      const batch = db.prepare('SELECT * FROM batches WHERE id = ?').get(batchId) as any
+      const students = db.prepare('SELECT * FROM students WHERE batchId = ?').all(batchId) as any[]
 
-    // Fetch associated layout if exists
-    let layout = null
-    if (batch.layoutId) {
-      layout = db.prepare('SELECT * FROM layouts WHERE id = ?').get(batch.layoutId) as any
-    }
+      if (!batch) return null
 
-    const bundle = {
-      version: '2.0.0', // Incremented version for binary format
-      batch: {
-        name: batch.name,
-        layout: layout ? { name: layout.name, content: layout.content } : null
-      },
-      students: students.map(s => {
-        let photoBase64 = null
-        if (s.photoPath && fs.existsSync(s.photoPath)) {
-          photoBase64 = fs.readFileSync(s.photoPath).toString('base64')
+      // Fetch associated layout if exists
+      let layout = null
+      if (batch.layoutId) {
+        layout = db.prepare('SELECT * FROM layouts WHERE id = ?').get(batch.layoutId) as any
+      }
+
+      bundle = {
+        ...bundle,
+        type: 'batch',
+        batch: {
+          name: batch.name,
+          layout: layout ? { name: layout.name, content: layout.content } : null
+        },
+        students: students.map(s => {
+          let photoBase64 = null
+          if (s.photoPath && fs.existsSync(s.photoPath)) {
+            photoBase64 = fs.readFileSync(s.photoPath).toString('base64')
+          }
+          return {
+            admNo: s.admNo,
+            data: JSON.parse(s.data),
+            photoBase64,
+            printStatus: s.printStatus
+          }
+        })
+      }
+      defaultFilename = `${batch.name.replace(/\s+/g, '_')}.wid`
+    } else if (singleLayoutId) {
+      const layout = db.prepare('SELECT * FROM layouts WHERE id = ?').get(singleLayoutId) as any
+      if (!layout) return null
+      bundle = {
+        ...bundle,
+        type: 'layout',
+        layout: {
+          name: layout.name,
+          content: layout.content
         }
-        return {
-          admNo: s.admNo,
-          data: JSON.parse(s.data),
-          photoBase64,
-          printStatus: s.printStatus
-        }
-      })
+      }
+      defaultFilename = `Layout_${layout.name.replace(/\s+/g, '_')}.wid`
+    } else {
+      return null
     }
 
     const savePath = dialog.showSaveDialogSync({
-      title: 'Export WhizPoint ID Batch',
-      defaultPath: `${batch.name.replace(/\s+/g, '_')}.wid`,
+      title: batchId ? 'Export WhizPoint ID Batch' : 'Export WhizPoint ID Layout',
+      defaultPath: defaultFilename,
       filters: [{ name: 'WhizPoint ID Files', extensions: ['wid'] }]
     })
 
@@ -356,10 +377,17 @@ export function setupIpc() {
       throw new Error('Invalid or corrupted .wid file')
     }
 
-    const batchName = `${bundle.batch.name} (Imported)`
+    // Handle single layout import
+    if (bundle.type === 'layout' || (bundle.layout && !bundle.students)) {
+      const { name, content } = bundle.layout
+      db.prepare('INSERT OR REPLACE INTO layouts (name, content) VALUES (?, ?)').run(name, content)
+      return { count: 1, type: 'layout' }
+    }
+
+    const batchName = `${bundle.batch?.name || 'Imported Batch'} (Imported)`
     // Handle layout import
     let layoutId = null
-    if (bundle.batch.layout) {
+    if (bundle.batch?.layout) {
         const { name, content } = bundle.batch.layout
         db.prepare('INSERT OR REPLACE INTO layouts (name, content) VALUES (?, ?)').run(name, content)
         const layout = db.prepare('SELECT id FROM layouts WHERE name = ?').get(name) as any
@@ -377,8 +405,9 @@ export function setupIpc() {
       INSERT INTO students (batchId, admNo, data, photoPath, printStatus) VALUES (?, ?, ?, ?, ?)
     `)
 
+    const students = bundle.students || []
     db.transaction(() => {
-      for (const s of bundle.students) {
+      for (const s of students) {
         let photoPath = null
         if (s.photoBase64) {
           photoPath = path.join(photoDir, `${s.admNo}.jpg`)
@@ -388,6 +417,6 @@ export function setupIpc() {
       }
     })()
 
-    return { batchId, count: bundle.students.length }
+    return { batchId, count: students.length, type: 'batch' }
   })
 }

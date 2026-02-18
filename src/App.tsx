@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import Calibration from './pages/Calibration'
 import StudentData from './pages/StudentData'
 import Design from './pages/Design'
+import Layouts from './pages/Layouts'
 import Batches from './pages/Batches'
 import Print from './pages/Print'
 import PreviewIndividual from './pages/PreviewIndividual'
@@ -58,10 +59,11 @@ const Settings = () => {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState('design')
+  const [activeTab, setActiveTab] = useState('layouts')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeBatchId, setActiveBatchId] = useState<number | null>(null)
+  const [pendingLayout, setPendingLayout] = useState<any>(null)
 
   const checkConnection = async () => {
     if (!window.ipcRenderer) {
@@ -98,7 +100,19 @@ function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'design': return <Design />
+      case 'layouts': return (
+        <Layouts
+          onLoadLayout={(layout) => {
+            setPendingLayout(layout)
+            setActiveTab('design')
+          }}
+          onNewLayout={() => {
+            setPendingLayout({ isNew: true })
+            setActiveTab('design')
+          }}
+        />
+      )
+      case 'design': return <Design pendingLayout={pendingLayout} clearPending={() => setPendingLayout(null)} />
       case 'data': return <StudentData initialBatchId={activeBatchId} />
       case 'batches': return (
         <Batches

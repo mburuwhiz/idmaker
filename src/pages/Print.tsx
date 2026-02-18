@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Printer, ChevronLeft, ChevronRight, FileText, Settings, X, Edit } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { renderA4Sheet, exportToPdf, renderCard } from '../utils/printService'
+import { ConfirmModal } from '../components/Modal'
 
 interface PrintProps {
   initialBatchId?: number | null
@@ -24,6 +25,9 @@ const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
   const [viewMode, setViewMode] = useState<'pair' | 'single'>('single')
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState('')
+  const [modal, setModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm?: () => void }>({
+    isOpen: false, title: '', message: ''
+  })
 
   useEffect(() => {
     loadInitialData()
@@ -139,11 +143,19 @@ const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
 
     const errors = validateBatch()
     if (errors.length > 0) {
-      if (!confirm(`Found ${errors.length} potential issues:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}\n\nContinue anyway?`)) {
-        return
-      }
+      setModal({
+        isOpen: true,
+        title: 'Batch Validation Issues',
+        message: `Found ${errors.length} potential issues (e.g. duplicates or missing photos). Continue with export anyway?`,
+        onConfirm: () => executePrint()
+      })
+      return
     }
 
+    executePrint()
+  }
+
+  const executePrint = async () => {
     setIsGenerating(true)
 
     const profile = profiles.find(p => p.id === selectedProfileId)
@@ -197,6 +209,13 @@ const Print: React.FC<PrintProps> = ({ initialBatchId = null }) => {
 
   return (
     <div className="p-6 h-full flex flex-col">
+      <ConfirmModal
+        isOpen={modal.isOpen}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+        onConfirm={modal.onConfirm || (() => {})}
+        title={modal.title}
+        message={modal.message}
+      />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Production Preview</h1>
         <div className="bg-white p-1 rounded-lg border flex shadow-sm">
