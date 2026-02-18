@@ -68,7 +68,11 @@ export async function processPhoto(source: string | ArrayBuffer, width: number, 
       reject(new Error('Failed to load image for processing'))
     }
 
-    if (typeof source === 'string' && source.length > 0) {
+    if (typeof source === 'string') {
+      if (source.length === 0) {
+        reject(new Error('Empty image source string'))
+        return
+      }
       if (source.startsWith('data:')) {
         img.src = source
       } else {

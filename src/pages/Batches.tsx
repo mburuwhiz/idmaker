@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { FileUp, Play, Table, Camera, Share2, PackageOpen, Trash2, Pencil, Layout } from 'lucide-react'
+import Modal from '../components/Modal'
 
 interface Batch {
   id: number
@@ -18,6 +19,14 @@ interface BatchesProps {
 const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => {
   const [batches, setBatches] = useState<Batch[]>([])
   const [layouts, setLayouts] = useState<any[]>([])
+
+  // Modals
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void, variant?: 'default' | 'danger' }>({
+    isOpen: false, title: '', message: '', onConfirm: () => {}
+  })
+  const [promptModal, setPromptModal] = useState<{ isOpen: boolean, title: string, value: string, onConfirm: (val: string) => void }>({
+    isOpen: false, title: '', value: '', onConfirm: () => {}
+  })
 
   useEffect(() => {
     loadInitialData()
@@ -37,19 +46,33 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
     setBatches(data)
   }
 
-  const handleImport = async () => {
+  const performImport = async (batchName: string) => {
+    if (!batchName.trim()) {
+        toast.error('Batch name is required')
+        return
+    }
     const loadToast = toast.loading('Importing Excel...')
     try {
-      const result = await window.ipcRenderer.invoke('import-excel')
+      const result = await window.ipcRenderer.invoke('import-excel', batchName)
       if (result) {
         toast.success(`Imported ${result.count} students!`, { id: loadToast })
         loadBatches()
       } else {
         toast.dismiss(loadToast)
       }
+      setPromptModal(prev => ({ ...prev, isOpen: false }))
     } catch (e) {
       toast.error('Import failed', { id: loadToast })
     }
+  }
+
+  const handleImport = () => {
+     setPromptModal({
+        isOpen: true,
+        title: 'Enter Batch Name',
+        value: `Batch ${new Date().toLocaleDateString()}`,
+        onConfirm: performImport
+     })
   }
 
   const handleMatchPhotos = async (batchId: number) => {
@@ -65,29 +88,47 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
     }
   }
 
-  const handleDeleteBatch = async (batchId: number) => {
-    if (confirm('Are you sure you want to delete this batch and all its student records? This cannot be undone.')) {
-      try {
+  const performDeleteBatch = async (batchId: number) => {
+    try {
         await window.ipcRenderer.invoke('delete-batch', batchId)
         toast.success('Batch deleted')
         loadBatches()
-      } catch (e) {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }))
+    } catch (e) {
         toast.error('Failed to delete batch')
-      }
     }
   }
 
-  const handleRenameBatch = async (batch: Batch) => {
-    const newName = prompt('Enter new name for batch:', batch.name)
+  const handleDeleteBatch = (batchId: number) => {
+    setConfirmModal({
+        isOpen: true,
+        title: 'Delete Batch?',
+        message: 'Are you sure you want to delete this batch and all its student records? This cannot be undone.',
+        onConfirm: () => performDeleteBatch(batchId),
+        variant: 'danger'
+    })
+  }
+
+  const performRenameBatch = async (batch: Batch, newName: string) => {
     if (newName && newName !== batch.name) {
       try {
         await window.ipcRenderer.invoke('rename-batch', batch.id, newName)
         toast.success('Batch renamed')
         loadBatches()
+        setPromptModal(prev => ({ ...prev, isOpen: false }))
       } catch (e) {
         toast.error('Failed to rename batch')
       }
     }
+  }
+
+  const handleRenameBatch = (batch: Batch) => {
+    setPromptModal({
+        isOpen: true,
+        title: 'Rename Batch',
+        value: batch.name,
+        onConfirm: (newName) => performRenameBatch(batch, newName)
+    })
   }
 
   const handleUpdateBatchLayout = async (batchId: number, layoutId: number) => {
@@ -204,6 +245,69 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        title={confirmModal.title}
+        variant={confirmModal.variant}
+        footer={
+          <>
+            <button
+              onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+              className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmModal.onConfirm}
+              className={`px-4 py-2 text-sm font-bold text-white rounded-lg transition-colors shadow-lg ${confirmModal.variant === 'danger' ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'}`}
+            >
+              Confirm
+            </button>
+          </>
+        }
+      >
+        <p className="text-slate-600">{confirmModal.message}</p>
+      </Modal>
+
+      {/* Prompt Modal */}
+      <Modal
+        isOpen={promptModal.isOpen}
+        onClose={() => setPromptModal(prev => ({ ...prev, isOpen: false }))}
+        title={promptModal.title}
+        footer={
+          <>
+             <button
+              onClick={() => setPromptModal(prev => ({ ...prev, isOpen: false }))}
+              className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => promptModal.onConfirm(promptModal.value)}
+              className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-lg shadow-blue-200"
+            >
+              Save
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Name</label>
+            <input
+                type="text"
+                value={promptModal.value}
+                onChange={(e) => setPromptModal(prev => ({ ...prev, value: e.target.value }))}
+                className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700"
+                autoFocus
+                onKeyDown={(e) => {
+                    if(e.key === 'Enter') promptModal.onConfirm(promptModal.value)
+                }}
+            />
+        </div>
+      </Modal>
     </div>
   )
 }

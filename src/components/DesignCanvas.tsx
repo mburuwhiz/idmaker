@@ -180,7 +180,8 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
             height: WORKSPACE_SIZE,
             transform: `scale(${scale})`,
             transformOrigin: 'center center',
-            flexShrink: 0
+            flexShrink: 0,
+            margin: 'auto'
         }}
       >
         <canvas ref={canvasRef} />

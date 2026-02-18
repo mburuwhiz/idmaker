@@ -7,13 +7,29 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 let XLSX = require('xlsx')
+let fontList = require('font-list')
+
 // Handle potential ESM wrapper or default export when using require in an ESM context
 if (XLSX && XLSX.default && typeof XLSX.readFile !== 'function') {
   XLSX = XLSX.default
 }
+if (fontList && fontList.default && typeof fontList.getFonts !== 'function') {
+  fontList = fontList.default
+}
 
 export function setupIpc() {
   console.log('[IPC] Registering handlers...')
+
+  // System Fonts
+  ipcMain.handle('get-system-fonts', async () => {
+    try {
+      const fonts = await fontList.getFonts()
+      return fonts
+    } catch (e) {
+      console.error('Failed to get system fonts:', e)
+      return []
+    }
+  })
 
   // Profiles
   ipcMain.handle('get-profiles', () => {
@@ -83,7 +99,7 @@ export function setupIpc() {
   })
 
   // Specialized Import
-  ipcMain.handle('import-excel', async () => {
+  ipcMain.handle('import-excel', async (_event, batchNameArg) => {
     try {
       console.log('[IPC] import-excel called')
 
@@ -110,7 +126,7 @@ export function setupIpc() {
         throw new Error('Excel file is empty')
       }
 
-      const batchName = `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
+      const batchName = batchNameArg || `Batch ${path.basename(filePath)} (${new Date().toLocaleDateString()})`
       const batchResult = db.prepare('INSERT INTO batches (name) VALUES (?)').run(batchName)
       const batchId = batchResult.lastInsertRowid
 

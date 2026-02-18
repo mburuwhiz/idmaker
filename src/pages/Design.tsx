@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import DesignCanvas from '../components/DesignCanvas'
+import Modal from '../components/Modal'
 import { useCanvasActions } from '../hooks/useCanvasActions'
 import {
   Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2,
@@ -10,7 +11,8 @@ import {
 } from 'lucide-react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM, CR80_WIDTH_PX, CR80_HEIGHT_PX } from '../utils/units'
 
-const FONTS = [
+const DEFAULT_FONTS = [
+  'Clarendon BT', 'Clarendon Lt BT',
   'Arial', 'Arial Black', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact',
   'Times New Roman', 'Didot', 'Georgia', 'American Typewriter',
   'Courier', 'Courier New', 'Monaco', 'Comic Sans MS',
@@ -32,10 +34,30 @@ const Design: React.FC = () => {
   const [layoutName, setLayoutName] = useState('New Layout')
   const [savedLayouts, setSavedLayouts] = useState<any[]>([])
   const [showTemplateManager, setShowTemplateManager] = useState(false)
+  const [availableFonts, setAvailableFonts] = useState<string[]>(DEFAULT_FONTS)
+
+  // Modals
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void, variant?: 'default' | 'danger' }>({
+    isOpen: false, title: '', message: '', onConfirm: () => {}
+  })
+  const [promptModal, setPromptModal] = useState<{ isOpen: boolean, title: string, value: string, onConfirm: (val: string) => void }>({
+    isOpen: false, title: '', value: '', onConfirm: () => {}
+  })
+
   const clipboard = useRef<any>(null)
 
   useEffect(() => {
     loadLayouts()
+
+    // Load system fonts
+    window.ipcRenderer.invoke('get-system-fonts').then((fonts: any) => {
+        if (Array.isArray(fonts)) {
+            // Clean font names (remove quotes if present)
+            const cleanFonts = fonts.map(f => f.replace(/['"]+/g, ''))
+            const merged = Array.from(new Set([...DEFAULT_FONTS, ...cleanFonts])).sort()
+            setAvailableFonts(merged)
+        }
+    }).catch(console.error)
   }, [])
 
   const saveToHistory = (c: any) => {
@@ -182,23 +204,34 @@ const Design: React.FC = () => {
     }
   }
 
-  const handleNew = () => {
+  const performNewLayout = () => {
     if (!canvas) return
-    if (confirm('Create new layout? Current unsaved changes will be lost.')) {
-      const objects = canvas.getObjects()
-      objects.forEach((obj: any) => {
+    const objects = canvas.getObjects()
+    objects.forEach((obj: any) => {
         if (!obj.isGuide) canvas.remove(obj)
-      })
-      canvas.backgroundColor = '#ffffff'
-      if (canvas.ensureGuides) canvas.ensureGuides()
+    })
+    // NOTE: Do not change backgroundColor to white. Keep it default (transparent/dark as per workspace)
+    // canvas.backgroundColor = '#ffffff'
 
-      setLayoutName('New Layout')
-      canvas.renderAll()
-      localStorage.removeItem('whizpoint_design_draft')
-      localStorage.removeItem('whizpoint_design_name')
-      toast.success('New layout started')
-      handleZoomFit()
-    }
+    if (canvas.ensureGuides) canvas.ensureGuides()
+
+    setLayoutName('New Layout')
+    canvas.renderAll()
+    localStorage.removeItem('whizpoint_design_draft')
+    localStorage.removeItem('whizpoint_design_name')
+    toast.success('New layout started')
+    handleZoomFit()
+    setConfirmModal(prev => ({ ...prev, isOpen: false }))
+  }
+
+  const handleNew = () => {
+    setConfirmModal({
+        isOpen: true,
+        title: 'Create New Layout?',
+        message: 'Current unsaved changes will be lost. Are you sure you want to start over?',
+        onConfirm: performNewLayout,
+        variant: 'danger'
+    })
   }
 
   useEffect(() => {
@@ -362,16 +395,25 @@ const Design: React.FC = () => {
     }
   }
 
-  const handleDeleteLayout = async (id: number) => {
-    if (confirm('Are you sure you want to delete this layout?')) {
-      try {
+  const performDeleteLayout = async (id: number) => {
+    try {
         await window.ipcRenderer.invoke('delete-layout', id)
         toast.success('Layout deleted')
         loadLayouts()
-      } catch (e) {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }))
+    } catch (e) {
         toast.error('Failed to delete layout')
-      }
     }
+  }
+
+  const handleDeleteLayout = (id: number) => {
+    setConfirmModal({
+        isOpen: true,
+        title: 'Delete Layout?',
+        message: 'This action cannot be undone. Are you sure you want to proceed?',
+        onConfirm: () => performDeleteLayout(id),
+        variant: 'danger'
+    })
   }
 
   const handleDownloadLayout = (layout: any) => {
@@ -385,18 +427,27 @@ const Design: React.FC = () => {
     toast.success('Layout exported as JSON');
   }
 
-  const handleRenameLayout = async (layout: any) => {
-    const newName = prompt('Enter new name for layout:', layout.name)
+  const performRenameLayout = async (layout: any, newName: string) => {
     if (newName && newName !== layout.name) {
       try {
         await window.ipcRenderer.invoke('save-layout', newName, layout.content)
         await window.ipcRenderer.invoke('delete-layout', layout.id)
         toast.success('Layout renamed')
         loadLayouts()
+        setPromptModal(prev => ({ ...prev, isOpen: false }))
       } catch (e) {
         toast.error('Failed to rename layout')
       }
     }
+  }
+
+  const handleRenameLayout = (layout: any) => {
+    setPromptModal({
+        isOpen: true,
+        title: 'Rename Layout',
+        value: layout.name,
+        onConfirm: (newName) => performRenameLayout(layout, newName)
+    })
   }
 
   const handleDownloadSampleExcel = () => {
@@ -430,7 +481,7 @@ const Design: React.FC = () => {
 
   return (
     <div className="flex h-screen flex-col bg-slate-50 overflow-hidden">
-      {/* Modern Compact Toolbar - Highly Responsive */}
+      {/* Modern Compact Toolbar */}
       <div className="bg-white border-b px-2 md:px-4 py-1.5 flex items-center justify-between shadow-sm z-30 flex-wrap gap-y-1.5">
         <div className="flex items-center gap-1.5 md:gap-3 flex-wrap">
           <div className="flex items-center gap-2 pr-2 border-r hidden sm:flex">
@@ -529,7 +580,7 @@ const Design: React.FC = () => {
             </div>
           </div>
 
-          {/* THE CANVAS CONTAINER - Now truly centered and taking up full space */}
+          {/* THE CANVAS CONTAINER */}
           <div className="flex-1 relative overflow-hidden">
             <DesignCanvas
               onCanvasReady={setCanvas}
@@ -539,7 +590,7 @@ const Design: React.FC = () => {
           </div>
         </div>
 
-        {/* Properties Panel - Sleek Dark Mode Interface */}
+        {/* Properties Panel */}
         <div className="w-72 bg-white border-l shadow-2xl z-20 flex flex-col">
           <div className="p-6 border-b bg-slate-50/50 flex items-center justify-between">
             <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em]">Properties</h3>
@@ -562,19 +613,23 @@ const Design: React.FC = () => {
                     <div className="space-y-2">
                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Typography</label>
                       <select
-                        value={FONTS.includes(selectedObject.fontFamily) ? selectedObject.fontFamily : 'Custom'}
+                        value={availableFonts.includes(selectedObject.fontFamily) ? selectedObject.fontFamily : 'Custom'}
                         onChange={(e) => {
                           if (e.target.value !== 'Custom') updateSelected('fontFamily', e.target.value)
                         }}
                         className="w-full border border-slate-200 rounded-xl p-2 text-sm bg-white shadow-sm font-medium"
                       >
-                        {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                        {availableFonts.map(f => <option key={f} value={f}>{f}</option>)}
                         <option value="Custom">Custom / System Font...</option>
                       </select>
                     </div>
                   </>
                 )}
-
+                {/* ... other properties ... */}
+                {/* I'll omit re-writing every property input for brevity unless asked, but I need to keep the structure intact.
+                    Wait, I should provide the FULL file content to avoid breaking things.
+                    I'll copy the properties section from previous read_file.
+                */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Size</label>
@@ -718,65 +773,123 @@ const Design: React.FC = () => {
 
       {/* Template Manager Modal */}
       {showTemplateManager && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-50 flex items-center justify-center p-8 animate-in fade-in duration-300">
-           <div className="bg-white rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] w-full max-w-4xl flex flex-col overflow-hidden border border-white/20">
-              <div className="px-12 py-10 border-b flex justify-between items-center bg-slate-50/50">
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xl z-50 flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
+           <div className="bg-white rounded-[2rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-white/20">
+              <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
                  <div>
-                    <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">Template Library</h2>
-                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Manage your production assets</p>
+                    <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Template Library</h2>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage your production assets</p>
                  </div>
-                 <button onClick={() => setShowTemplateManager(false)} className="p-4 hover:bg-slate-200 rounded-full transition-all text-slate-400 hover:text-slate-800 hover:rotate-90">
-                    <X size={32} />
+                 <button onClick={() => setShowTemplateManager(false)} className="p-3 hover:bg-slate-200 rounded-full transition-all text-slate-400 hover:text-slate-800 hover:rotate-90">
+                    <X size={24} />
                  </button>
               </div>
 
-              <div className="flex-1 overflow-auto p-4 md:p-8 bg-white">
+              <div className="flex-1 overflow-auto p-6 bg-slate-50/30">
                  {savedLayouts.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                        {savedLayouts.map(l => (
-                          <div key={l.id} className="group border-2 border-slate-100 hover:border-blue-600 rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-6 transition-all hover:shadow-xl hover:shadow-blue-100 flex flex-col justify-between bg-slate-50/30 hover:bg-white relative overflow-hidden">
-                             <div className="absolute top-0 right-0 p-4 md:p-8 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1.5 md:gap-2">
-                                <button onClick={() => handleDownloadLayout(l)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Export JSON"><Download size={18} /></button>
-                                <button onClick={() => handleRenameLayout(l)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Rename"><Pencil size={18} /></button>
-                                <button onClick={() => handleDeleteLayout(l.id)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-red-400 hover:text-red-600 transition-all" title="Delete"><Trash size={18} /></button>
+                          <div key={l.id} className="group bg-white border border-slate-200 hover:border-blue-500 rounded-xl p-4 transition-all hover:shadow-lg flex flex-col relative overflow-hidden h-64">
+                             {/* Overlay for actions */}
+                             <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors z-10 pointer-events-none" />
+                             <div className="absolute top-2 right-2 flex flex-col gap-2 z-20 translate-x-12 group-hover:translate-x-0 transition-transform duration-300">
+                                <button onClick={() => handleDownloadLayout(l)} className="p-2 bg-white shadow-sm border rounded-lg text-slate-600 hover:text-blue-600 transition-all hover:scale-105" title="Export JSON"><Download size={16} /></button>
+                                <button onClick={() => handleRenameLayout(l)} className="p-2 bg-white shadow-sm border rounded-lg text-slate-600 hover:text-blue-600 transition-all hover:scale-105" title="Rename"><Pencil size={16} /></button>
+                                <button onClick={() => handleDeleteLayout(l.id)} className="p-2 bg-white shadow-sm border rounded-lg text-red-400 hover:text-red-600 transition-all hover:scale-105" title="Delete"><Trash size={16} /></button>
                              </div>
 
-                             <div>
-                                <div className="p-3 md:p-4 bg-white rounded-xl md:rounded-2xl shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all w-fit mb-4 md:mb-6 border border-slate-100 group-hover:border-blue-500">
-                                   <LayoutTemplate size={24} />
-                                </div>
-                                <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase group-hover:text-blue-600 transition-colors truncate pr-20">{l.name}</h3>
-                                <p className="text-[10px] md:text-[11px] text-slate-400 font-black uppercase tracking-[0.15em] md:tracking-[0.2em] mt-1 md:mt-2">Standard PVC • CR80</p>
+                             <div className="flex-1 flex items-center justify-center bg-slate-50 rounded-lg mb-3 border border-slate-100">
+                                <LayoutTemplate size={32} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
                              </div>
+
+                             <div className="space-y-1">
+                                <h3 className="font-bold text-slate-700 text-sm truncate" title={l.name}>{l.name}</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CR80 • PVC</p>
+                             </div>
+
                              <button
                                 onClick={() => handleLoad(l)}
-                                className="mt-6 md:mt-10 w-full py-3 md:py-4 bg-white border-2 border-slate-200 rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-[0.15em] md:tracking-[0.2em] text-slate-500 group-hover:bg-blue-600 group-hover:border-blue-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-xl group-hover:shadow-blue-200"
+                                className="mt-3 w-full py-2 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wide text-slate-500 transition-all"
                              >
-                                Load Project
+                                Open
                              </button>
                           </div>
                        ))}
                     </div>
                  ) : (
-                    <div className="text-center py-32 bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-200">
-                       <LayoutTemplate size={64} className="mx-auto text-slate-200 mb-6" />
-                       <h3 className="font-black text-slate-400 uppercase tracking-[0.2em]">No templates available</h3>
-                       <p className="text-sm text-slate-400 mt-4 max-w-xs mx-auto font-medium">Create and save your first professional ID layout to see it here.</p>
+                    <div className="text-center py-20 flex flex-col items-center justify-center h-full">
+                       <LayoutTemplate size={48} className="text-slate-200 mb-4" />
+                       <h3 className="font-bold text-slate-400 text-lg">No layouts yet</h3>
+                       <p className="text-sm text-slate-400 mt-2 max-w-xs">Start a new design and save it to build your library.</p>
                     </div>
                  )}
-              </div>
-
-              <div className="px-12 py-10 border-t bg-slate-50/50 flex justify-end gap-4">
-                 <button
-                    onClick={() => setShowTemplateManager(false)}
-                    className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-black transition shadow-2xl shadow-slate-300"
-                 >
-                    Return to Designer
-                 </button>
               </div>
            </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        title={confirmModal.title}
+        variant={confirmModal.variant}
+        footer={
+          <>
+            <button
+              onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+              className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmModal.onConfirm}
+              className={`px-4 py-2 text-sm font-bold text-white rounded-lg transition-colors shadow-lg ${confirmModal.variant === 'danger' ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'}`}
+            >
+              Confirm
+            </button>
+          </>
+        }
+      >
+        <p className="text-slate-600">{confirmModal.message}</p>
+      </Modal>
+
+      {/* Prompt Modal */}
+      <Modal
+        isOpen={promptModal.isOpen}
+        onClose={() => setPromptModal(prev => ({ ...prev, isOpen: false }))}
+        title={promptModal.title}
+        footer={
+          <>
+             <button
+              onClick={() => setPromptModal(prev => ({ ...prev, isOpen: false }))}
+              className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => promptModal.onConfirm(promptModal.value)}
+              className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-lg shadow-blue-200"
+            >
+              Save
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Name</label>
+            <input
+                type="text"
+                value={promptModal.value}
+                onChange={(e) => setPromptModal(prev => ({ ...prev, value: e.target.value }))}
+                className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700"
+                autoFocus
+                onKeyDown={(e) => {
+                    if(e.key === 'Enter') promptModal.onConfirm(promptModal.value)
+                }}
+            />
+        </div>
+      </Modal>
     </div>
   )
 }
