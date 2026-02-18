@@ -7,7 +7,8 @@ import {
   Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2,
   MoveUp, MoveDown, UserSquare, Bold, Italic, FileUp,
   Maximize, Settings2, Download, Trash, X, MousePointer2, Grid3X3,
-  Underline as UnderlineIcon, Pencil, Magnet, LayoutTemplate, Undo2, Redo2, Copy
+  Underline as UnderlineIcon, Pencil, Magnet, LayoutTemplate, Undo2, Redo2, Copy,
+  Search, Calendar, FileJson, Table, Grid
 } from 'lucide-react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM, CR80_WIDTH_PX, CR80_HEIGHT_PX } from '../utils/units'
 
@@ -35,6 +36,8 @@ const Design: React.FC = () => {
   const [savedLayouts, setSavedLayouts] = useState<any[]>([])
   const [showTemplateManager, setShowTemplateManager] = useState(false)
   const [availableFonts, setAvailableFonts] = useState<string[]>(DEFAULT_FONTS)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
   // Modals
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, title: string, message: string, onConfirm: () => void, variant?: 'default' | 'danger' }>({
@@ -210,8 +213,6 @@ const Design: React.FC = () => {
     objects.forEach((obj: any) => {
         if (!obj.isGuide) canvas.remove(obj)
     })
-    // NOTE: Do not change backgroundColor to white. Keep it default (transparent/dark as per workspace)
-    // canvas.backgroundColor = '#ffffff'
 
     if (canvas.ensureGuides) canvas.ensureGuides()
 
@@ -331,11 +332,10 @@ const Design: React.FC = () => {
       return;
     }
 
-    // Store current state for restoration
     const originalDim = { width: canvas.width, height: canvas.height };
     const originalVpt = canvas.viewportTransform ? [...canvas.viewportTransform] : [1, 0, 0, 1, 0, 0];
 
-    // Force standard dimensions and reset viewport before saving to ensure 0,0 origin consistency
+    // Force standard dimensions and reset viewport before saving
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX });
 
@@ -358,7 +358,6 @@ const Design: React.FC = () => {
       console.error('Save failed:', e);
       toast.error('Failed to save layout', { id: loadToast });
     } finally {
-      // Restore workspace dimensions and centered viewport
       canvas.setDimensions(originalDim);
       canvas.setViewportTransform(originalVpt);
       canvas.renderAll();
@@ -384,7 +383,7 @@ const Design: React.FC = () => {
         'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'underline',
         'stroke', 'fill', 'strokeWidth'
       ]),
-      type: activeObject.type, // Explicitly include type
+      type: activeObject.type,
       _actual: activeObject
     })
   }
@@ -478,6 +477,10 @@ const Design: React.FC = () => {
     document.body.removeChild(link)
     toast.success('Sample CSV downloaded!')
   }
+
+  const filteredLayouts = savedLayouts.filter(l =>
+    l.name.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   return (
     <div className="flex h-screen flex-col bg-slate-50 overflow-hidden">
@@ -625,11 +628,7 @@ const Design: React.FC = () => {
                     </div>
                   </>
                 )}
-                {/* ... other properties ... */}
-                {/* I'll omit re-writing every property input for brevity unless asked, but I need to keep the structure intact.
-                    Wait, I should provide the FULL file content to avoid breaking things.
-                    I'll copy the properties section from previous read_file.
-                */}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Size</label>
@@ -773,54 +772,133 @@ const Design: React.FC = () => {
 
       {/* Template Manager Modal */}
       {showTemplateManager && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xl z-50 flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
-           <div className="bg-white rounded-[2rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-white/20">
-              <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200">
+           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+              {/* Header */}
+              <div className="px-6 py-5 border-b flex justify-between items-center bg-white sticky top-0 z-10">
                  <div>
-                    <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Template Library</h2>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage your production assets</p>
+                    <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+                        <LayoutTemplate className="text-blue-600" /> Template Library
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Manage and organize your ID card designs.</p>
                  </div>
-                 <button onClick={() => setShowTemplateManager(false)} className="p-3 hover:bg-slate-200 rounded-full transition-all text-slate-400 hover:text-slate-800 hover:rotate-90">
-                    <X size={24} />
+                 <button onClick={() => setShowTemplateManager(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-700">
+                    <X size={20} />
                  </button>
               </div>
 
-              <div className="flex-1 overflow-auto p-6 bg-slate-50/30">
-                 {savedLayouts.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                       {savedLayouts.map(l => (
-                          <div key={l.id} className="group bg-white border border-slate-200 hover:border-blue-500 rounded-xl p-4 transition-all hover:shadow-lg flex flex-col relative overflow-hidden h-64">
-                             {/* Overlay for actions */}
-                             <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors z-10 pointer-events-none" />
-                             <div className="absolute top-2 right-2 flex flex-col gap-2 z-20 translate-x-12 group-hover:translate-x-0 transition-transform duration-300">
-                                <button onClick={() => handleDownloadLayout(l)} className="p-2 bg-white shadow-sm border rounded-lg text-slate-600 hover:text-blue-600 transition-all hover:scale-105" title="Export JSON"><Download size={16} /></button>
-                                <button onClick={() => handleRenameLayout(l)} className="p-2 bg-white shadow-sm border rounded-lg text-slate-600 hover:text-blue-600 transition-all hover:scale-105" title="Rename"><Pencil size={16} /></button>
-                                <button onClick={() => handleDeleteLayout(l.id)} className="p-2 bg-white shadow-sm border rounded-lg text-red-400 hover:text-red-600 transition-all hover:scale-105" title="Delete"><Trash size={16} /></button>
-                             </div>
+              {/* Toolbar */}
+              <div className="px-6 py-3 border-b bg-slate-50 flex justify-between items-center gap-4">
+                  <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search templates..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      />
+                  </div>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-slate-100 text-blue-600 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
+                      >
+                          <Table size={16} />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-slate-100 text-blue-600 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
+                      >
+                          <Grid size={16} />
+                      </button>
+                  </div>
+              </div>
 
-                             <div className="flex-1 flex items-center justify-center bg-slate-50 rounded-lg mb-3 border border-slate-100">
-                                <LayoutTemplate size={32} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
-                             </div>
+              {/* Content */}
+              <div className="flex-1 overflow-auto bg-slate-50/50">
+                 {filteredLayouts.length > 0 ? (
+                    <>
+                    {viewMode === 'list' ? (
+                        <div className="min-w-full inline-block align-middle">
+                            <div className="border-b border-slate-200 bg-slate-50 sticky top-0 px-6 py-2 grid grid-cols-12 gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                <div className="col-span-5">Name</div>
+                                <div className="col-span-3">Created</div>
+                                <div className="col-span-2 text-center">Format</div>
+                                <div className="col-span-2 text-right">Actions</div>
+                            </div>
+                            <div className="divide-y divide-slate-100">
+                                {filteredLayouts.map(l => (
+                                    <div key={l.id} className="grid grid-cols-12 gap-4 px-6 py-3 hover:bg-white items-center transition-colors group">
+                                        <div className="col-span-5 flex items-center gap-3">
+                                            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                                <FileJson size={18} />
+                                            </div>
+                                            <span className="font-semibold text-slate-700 text-sm">{l.name}</span>
+                                        </div>
+                                        <div className="col-span-3 text-sm text-slate-500 flex items-center gap-2">
+                                            <Calendar size={14} className="text-slate-400" />
+                                            {l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Unknown'}
+                                        </div>
+                                        <div className="col-span-2 text-center">
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
+                                                CR80
+                                            </span>
+                                        </div>
+                                        <div className="col-span-2 flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => handleLoad(l)} className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-md transition-colors" title="Open">
+                                                <LayoutTemplate size={16} />
+                                            </button>
+                                            <button onClick={() => handleDownloadLayout(l)} className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-md transition-colors" title="Export JSON">
+                                                <Download size={16} />
+                                            </button>
+                                            <button onClick={() => handleRenameLayout(l)} className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-md transition-colors" title="Rename">
+                                                <Pencil size={16} />
+                                            </button>
+                                            <button onClick={() => handleDeleteLayout(l.id)} className="p-1.5 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-md transition-colors" title="Delete">
+                                                <Trash size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                        {filteredLayouts.map(l => (
+                            <div key={l.id} className="group bg-white border border-slate-200 hover:border-blue-400 rounded-xl p-4 transition-all hover:shadow-md flex flex-col relative h-56">
+                                <div className="flex-1 flex items-center justify-center bg-slate-50 rounded-lg mb-3 border border-slate-100 group-hover:bg-blue-50/30 transition-colors">
+                                    <LayoutTemplate size={32} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                                </div>
 
-                             <div className="space-y-1">
-                                <h3 className="font-bold text-slate-700 text-sm truncate" title={l.name}>{l.name}</h3>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CR80 • PVC</p>
-                             </div>
+                                <div className="space-y-1 mb-3">
+                                    <h3 className="font-bold text-slate-700 text-sm truncate" title={l.name}>{l.name}</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Unknown'}</p>
+                                </div>
 
-                             <button
-                                onClick={() => handleLoad(l)}
-                                className="mt-3 w-full py-2 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wide text-slate-500 transition-all"
-                             >
-                                Open
-                             </button>
-                          </div>
-                       ))}
-                    </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => handleLoad(l)}
+                                        className="flex-1 py-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wide text-slate-500 transition-all"
+                                    >
+                                        Open
+                                    </button>
+                                    <button onClick={() => handleDeleteLayout(l.id)} className="p-1.5 bg-white border hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-lg text-slate-400 transition-all" title="Delete">
+                                        <Trash size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        </div>
+                    )}
+                    </>
                  ) : (
                     <div className="text-center py-20 flex flex-col items-center justify-center h-full">
-                       <LayoutTemplate size={48} className="text-slate-200 mb-4" />
-                       <h3 className="font-bold text-slate-400 text-lg">No layouts yet</h3>
-                       <p className="text-sm text-slate-400 mt-2 max-w-xs">Start a new design and save it to build your library.</p>
+                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                            <LayoutTemplate size={32} className="text-slate-300" />
+                       </div>
+                       <h3 className="font-bold text-slate-600 text-lg">No templates found</h3>
+                       <p className="text-sm text-slate-400 mt-2 max-w-xs">{searchTerm ? 'Try adjusting your search terms.' : 'Create a new design and save it to build your library.'}</p>
                     </div>
                  )}
               </div>

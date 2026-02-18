@@ -33,17 +33,27 @@ const Batches: React.FC<BatchesProps> = ({ onViewData, onPrint, onPreview }) => 
   }, [])
 
   const loadInitialData = async () => {
-    const [bData, lData] = await Promise.all([
-      window.ipcRenderer.invoke('get-batches'),
-      window.ipcRenderer.invoke('get-layouts')
-    ])
-    setBatches(bData)
-    setLayouts(lData)
+    try {
+        const [bData, lData] = await Promise.all([
+        window.ipcRenderer.invoke('get-batches'),
+        window.ipcRenderer.invoke('get-layouts')
+        ])
+        setBatches(Array.isArray(bData) ? bData : [])
+        setLayouts(Array.isArray(lData) ? lData : [])
+    } catch (e) {
+        console.error('Failed to load initial data:', e)
+        setBatches([])
+        setLayouts([])
+    }
   }
 
   const loadBatches = async () => {
-    const data = await window.ipcRenderer.invoke('get-batches')
-    setBatches(data)
+    try {
+        const data = await window.ipcRenderer.invoke('get-batches')
+        setBatches(Array.isArray(data) ? data : [])
+    } catch (e) {
+        toast.error('Failed to reload batches')
+    }
   }
 
   const performImport = async (batchName: string) => {
