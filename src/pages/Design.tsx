@@ -106,14 +106,6 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
   const saveDraft = (c: any) => {
     if (!c || isRedoing.current) return
 
-    // Store current state for restoration
-    const originalDim = { width: c.width, height: c.height };
-    const originalVpt = c.viewportTransform ? [...c.viewportTransform] : [1, 0, 0, 1, 0, 0];
-
-    // Temporarily normalize to card dimensions for consistent coordinate saving
-    c.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    c.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX });
-
     const content = JSON.stringify(c.toJSON([
       'isPlaceholder',
       'isPhotoPlaceholder',
@@ -126,10 +118,6 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
       'stroke', 'fill', 'strokeWidth'
     ]));
 
-    // Restore workspace state
-    c.setDimensions(originalDim);
-    c.setViewportTransform(originalVpt);
-
     localStorage.setItem('whizpoint_design_draft', content)
     localStorage.setItem('whizpoint_design_name', layoutName)
   }
@@ -137,7 +125,9 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
   useEffect(() => {
     if (!canvas) return
 
-    const handleCanvasChange = () => {
+    const handleCanvasChange = (opt: any) => {
+      // Ignore events from guide objects or if interaction is still in progress
+      if (opt && opt.target && opt.target.isGuide) return
       saveDraft(canvas)
       saveToHistory(canvas)
     }
@@ -146,18 +136,12 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
     canvas.on('object:added', handleCanvasChange)
     canvas.on('object:removed', handleCanvasChange)
     canvas.on('path:created', handleCanvasChange)
-    canvas.on('object:scaling', handleCanvasChange)
-    canvas.on('object:rotating', handleCanvasChange)
-    canvas.on('object:skewing', handleCanvasChange)
 
     return () => {
       canvas.off('object:modified', handleCanvasChange)
       canvas.off('object:added', handleCanvasChange)
       canvas.off('object:removed', handleCanvasChange)
       canvas.off('path:created', handleCanvasChange)
-      canvas.off('object:scaling', handleCanvasChange)
-      canvas.off('object:rotating', handleCanvasChange)
-      canvas.off('object:skewing', handleCanvasChange)
     }
   }, [canvas, layoutName])
 
@@ -321,7 +305,6 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
                 'stroke', 'fill', 'strokeWidth'
             ]),
             type: obj.type, // Explicitly include type
-            _actual: obj
         })
       } else {
         setSelectedObject(null)
@@ -346,14 +329,6 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
       return;
     }
 
-    // Store current state for restoration
-    const originalDim = { width: canvas.width, height: canvas.height };
-    const originalVpt = canvas.viewportTransform ? [...canvas.viewportTransform] : [1, 0, 0, 1, 0, 0];
-
-    // Force standard dimensions and reset viewport before saving to ensure 0,0 origin consistency
-    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX });
-
     const loadToast = toast.loading('Saving layout...');
     try {
       const content = JSON.stringify(canvas.toJSON([
@@ -372,11 +347,6 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
     } catch (e) {
       console.error('Save failed:', e);
       toast.error('Failed to save layout', { id: loadToast });
-    } finally {
-      // Restore workspace dimensions and centered viewport
-      canvas.setDimensions(originalDim);
-      canvas.setViewportTransform(originalVpt);
-      canvas.renderAll();
     }
   }
 
@@ -400,7 +370,6 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
         'stroke', 'fill', 'strokeWidth'
       ]),
       type: activeObject.type, // Explicitly include type
-      _actual: activeObject
     })
   }
 
@@ -682,8 +651,11 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
                     <div className="flex gap-3">
                         <button
                         onClick={() => {
-                            selectedObject._actual.bringToFront()
-                            canvas.requestRenderAll()
+                            const active = canvas.getActiveObject()
+                            if (active) {
+                                active.bringToFront()
+                                canvas.requestRenderAll()
+                            }
                         }}
                         className="flex-1 flex items-center justify-center gap-3 p-3.5 border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
                         >
@@ -691,8 +663,11 @@ const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
                         </button>
                         <button
                         onClick={() => {
-                            selectedObject._actual.sendToBack()
-                            canvas.requestRenderAll()
+                            const active = canvas.getActiveObject()
+                            if (active) {
+                                active.sendToBack()
+                                canvas.requestRenderAll()
+                            }
                         }}
                         className="flex-1 flex items-center justify-center gap-3 p-3.5 border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
                         >
