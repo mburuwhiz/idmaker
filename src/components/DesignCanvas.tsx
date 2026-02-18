@@ -18,20 +18,25 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const [scale, setScale] = useState(1)
 
+  const centerCanvas = (canvas: fabric.Canvas) => {
+    const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
+    const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
+    canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
+    canvas.requestRenderAll()
+  }
+
   useEffect(() => {
     if (canvasRef.current && containerRef.current && !fabricCanvasRef.current) {
       const canvas = new fabric.Canvas(canvasRef.current, {
         width: WORKSPACE_SIZE,
         height: WORKSPACE_SIZE,
-        backgroundColor: '#0f172a', // Dark workspace background
+        backgroundColor: '#f1f5f9', // Professional light slate background
         preserveObjectStacking: true,
         selection: true,
       })
 
       // Center the CR80 card area in the large workspace
-      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
-      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
-      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
+      centerCanvas(canvas)
 
       // Zooming with Alt + Wheel
       canvas.on('mouse:wheel', function(this: fabric.Canvas, opt) {
@@ -102,10 +107,10 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
             evented: false,
             excludeFromExport: true,
             shadow: new fabric.Shadow({
-                color: 'rgba(0,0,0,0.5)',
-                blur: 30,
+                color: 'rgba(0,0,0,0.3)',
+                blur: 60,
                 offsetX: 0,
-                offsetY: 10
+                offsetY: 20
             })
         })
         // @ts-ignore
@@ -149,7 +154,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     // Auto-scaling logic - optimized to fit the CARD in view, but allowing space around it
     const updateScale = () => {
       if (!containerRef.current) return
-      const padding = 120 // Space around the card to see off-canvas objects
+      const padding = 200 // More generous space around the card
       const { clientWidth, clientHeight } = containerRef.current
 
       // We want the card + padding to fit
@@ -161,6 +166,10 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
       const newScale = Math.min(scaleX, scaleY, 2.0)
       setScale(newScale)
+
+      if (fabricCanvasRef.current) {
+        centerCanvas(fabricCanvasRef.current)
+      }
     }
 
     const resizeObserver = new ResizeObserver(updateScale)
@@ -171,10 +180,10 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
   }, [onCanvasReady])
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-slate-950 overflow-hidden relative flex items-center justify-center">
+    <div ref={containerRef} className="w-full h-full bg-slate-200 overflow-hidden relative flex items-center justify-center">
       {/* Centered Workspace Container */}
       <div
-        className="transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1)"
+        className="transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1) flex items-center justify-center"
         style={{
             width: WORKSPACE_SIZE,
             height: WORKSPACE_SIZE,
@@ -183,7 +192,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
             flexShrink: 0
         }}
       >
-        <canvas ref={canvasRef} />
+        <canvas ref={canvasRef} className="shadow-2xl" />
       </div>
 
       {/* Info Overlay */}

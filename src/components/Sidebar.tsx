@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Layout, Database, Clock, Printer, Settings2, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Layout, Database, Clock, Printer, Settings2, Settings, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 
 interface SidebarProps {
   activeTab: string
@@ -10,7 +10,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const menuItems = [
-    { id: 'design', label: 'Design', icon: Layout },
+    { id: 'layouts', label: 'Library', icon: Layout },
+    { id: 'design', label: 'Designer', icon: Pencil },
     { id: 'data', label: 'Data', icon: Database },
     { id: 'batches', label: 'Batches', icon: Clock },
     { id: 'print', label: 'Print', icon: Printer },

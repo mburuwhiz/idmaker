@@ -5,21 +5,28 @@ import { useCanvasActions } from '../hooks/useCanvasActions'
 import {
   Type, Image as ImageIcon, Tags, Trash2, Save, Square, Minimize2,
   MoveUp, MoveDown, UserSquare, Bold, Italic, FileUp,
-  Maximize, Settings2, Download, Trash, X, MousePointer2, Grid3X3,
-  Underline as UnderlineIcon, Pencil, Magnet, LayoutTemplate, Undo2, Redo2, Copy
+  Maximize, Download, MousePointer2, Grid3X3,
+  Underline as UnderlineIcon, Magnet, LayoutTemplate, Undo2, Redo2, Copy, AlignCenter
 } from 'lucide-react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM, CR80_WIDTH_PX, CR80_HEIGHT_PX } from '../utils/units'
+import { ConfirmModal, PromptModal } from '../components/Modal'
 
 const FONTS = [
   'Arial', 'Arial Black', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact',
   'Times New Roman', 'Didot', 'Georgia', 'American Typewriter',
   'Courier', 'Courier New', 'Monaco', 'Comic Sans MS',
-  'Helvetica', 'Segoe UI', 'Roboto', 'Open Sans', 'Lato', 'Montserrat'
+  'Helvetica', 'Segoe UI', 'Roboto', 'Open Sans', 'Lato', 'Montserrat',
+  'Clarendon BT', 'Clarendon Lt BT'
 ]
 
-const Design: React.FC = () => {
+interface DesignProps {
+  pendingLayout?: any
+  clearPending?: () => void
+}
+
+const Design: React.FC<DesignProps> = ({ pendingLayout, clearPending }) => {
   const [canvas, setCanvas] = useState<any>(null)
-  const { addText, addPlaceholder, addPhotoFrame, addRect, addLine, addImage, deleteSelected, duplicateSelected } = useCanvasActions(canvas)
+  const { addText, addPlaceholder, addPhotoFrame, addRect, addLine, addImage, deleteSelected, duplicateSelected, centerContent } = useCanvasActions(canvas)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // History for Undo/Redo
@@ -30,13 +37,10 @@ const Design: React.FC = () => {
   const [snapToGrid, setSnapToGrid] = useState(false)
   const [selectedObject, setSelectedObject] = useState<any>(null)
   const [layoutName, setLayoutName] = useState('New Layout')
-  const [savedLayouts, setSavedLayouts] = useState<any[]>([])
-  const [showTemplateManager, setShowTemplateManager] = useState(false)
+  const [modal, setModal] = useState<{ type: 'confirm' | 'prompt' | null, title: string, message: string, onConfirm?: (v?: any) => void, initialValue?: string, isDestructive?: boolean }>({
+    type: null, title: '', message: ''
+  })
   const clipboard = useRef<any>(null)
-
-  useEffect(() => {
-    loadLayouts()
-  }, [])
 
   const saveToHistory = (c: any) => {
     if (!c || isRedoing.current) return
@@ -58,10 +62,13 @@ const Design: React.FC = () => {
   const restoreWorkspace = (c: any) => {
     if (!c) return;
     const WORKSPACE_SIZE = 3000;
+    // Always force dimensions and VT to ensure centering
     c.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE });
     const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2;
     const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2;
     c.setViewportTransform([1, 0, 0, 1, offsetX, offsetY]);
+    // Ensure background remains clean and guides are present
+    c.backgroundColor = '#f1f5f9';
     if (c.ensureGuides) c.ensureGuides();
     c.renderAll();
   }
@@ -132,9 +139,19 @@ const Design: React.FC = () => {
     }
   }, [canvas, layoutName])
 
-  // Load draft on mount
+  // Load pending layout or draft on mount
   useEffect(() => {
     if (!canvas) return
+
+    if (pendingLayout) {
+        if (pendingLayout.isNew) {
+            handleNew(true)
+        } else {
+            handleLoad(pendingLayout)
+        }
+        clearPending?.()
+        return
+    }
 
     const draft = localStorage.getItem('whizpoint_design_draft')
     // Initialize history with empty state if no draft
@@ -150,31 +167,27 @@ const Design: React.FC = () => {
           setTimeout(handleZoomFit, 100)
       })
     }
-  }, [canvas])
-
-  const loadLayouts = async () => {
-    try {
-      const data = await window.ipcRenderer.invoke('get-layouts')
-      setSavedLayouts(data)
-    } catch (e) {
-      console.error('Failed to load layouts:', e)
-    }
-  }
+  }, [canvas, pendingLayout])
 
   const handleLoad = async (layout: any) => {
     if (!canvas) return
     const loadToast = toast.loading('Loading layout...')
     try {
       // Explicitly clear before loading
-      canvas.clear()
+      const objects = canvas.getObjects()
+      objects.forEach((obj: any) => {
+        if (!obj.isGuide) canvas.remove(obj)
+      })
+
       await canvas.loadFromJSON(layout.content)
       restoreWorkspace(canvas)
 
       setLayoutName(layout.name)
-      setShowTemplateManager(false)
       // Save as draft immediately when loaded
       saveDraft(canvas)
       toast.success('Layout loaded!', { id: loadToast })
+      // Re-trigger centering and guides
+      restoreWorkspace(canvas)
       // Auto zoom to fit after load
       setTimeout(handleZoomFit, 100)
     } catch (_e) {
@@ -182,22 +195,35 @@ const Design: React.FC = () => {
     }
   }
 
-  const handleNew = () => {
+  const handleNew = (force: boolean = false) => {
     if (!canvas) return
-    if (confirm('Create new layout? Current unsaved changes will be lost.')) {
-      const objects = canvas.getObjects()
-      objects.forEach((obj: any) => {
-        if (!obj.isGuide) canvas.remove(obj)
-      })
-      canvas.backgroundColor = '#ffffff'
-      if (canvas.ensureGuides) canvas.ensureGuides()
 
-      setLayoutName('New Layout')
-      canvas.renderAll()
-      localStorage.removeItem('whizpoint_design_draft')
-      localStorage.removeItem('whizpoint_design_name')
-      toast.success('New layout started')
-      handleZoomFit()
+    const executeNew = () => {
+        const objects = canvas.getObjects()
+        objects.forEach((obj: any) => {
+          if (!obj.isGuide) canvas.remove(obj)
+        })
+        canvas.backgroundColor = '#f1f5f9'
+        if (canvas.ensureGuides) canvas.ensureGuides()
+        restoreWorkspace(canvas)
+
+        setLayoutName('New Layout')
+        canvas.renderAll()
+        localStorage.removeItem('whizpoint_design_draft')
+        localStorage.removeItem('whizpoint_design_name')
+        toast.success('New layout started')
+        handleZoomFit()
+    }
+
+    if (force) {
+        executeNew()
+    } else {
+        setModal({
+            type: 'confirm',
+            title: 'Create New Layout',
+            message: 'Are you sure you want to create a new layout? Current unsaved changes will be lost.',
+            onConfirm: executeNew
+        })
     }
   }
 
@@ -319,7 +345,6 @@ const Design: React.FC = () => {
         'rx', 'ry', 'selectable', 'underline'
       ]));
       await window.ipcRenderer.invoke('save-layout', layoutName, content);
-      loadLayouts();
       toast.success('Layout saved successfully!', { id: loadToast });
     } catch (e) {
       console.error('Save failed:', e);
@@ -362,42 +387,6 @@ const Design: React.FC = () => {
     }
   }
 
-  const handleDeleteLayout = async (id: number) => {
-    if (confirm('Are you sure you want to delete this layout?')) {
-      try {
-        await window.ipcRenderer.invoke('delete-layout', id)
-        toast.success('Layout deleted')
-        loadLayouts()
-      } catch (e) {
-        toast.error('Failed to delete layout')
-      }
-    }
-  }
-
-  const handleDownloadLayout = (layout: any) => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(layout.content);
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", layout.name + ".json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    toast.success('Layout exported as JSON');
-  }
-
-  const handleRenameLayout = async (layout: any) => {
-    const newName = prompt('Enter new name for layout:', layout.name)
-    if (newName && newName !== layout.name) {
-      try {
-        await window.ipcRenderer.invoke('save-layout', newName, layout.content)
-        await window.ipcRenderer.invoke('delete-layout', layout.id)
-        toast.success('Layout renamed')
-        loadLayouts()
-      } catch (e) {
-        toast.error('Failed to rename layout')
-      }
-    }
-  }
 
   const handleDownloadSampleExcel = () => {
     if (!canvas) return
@@ -443,11 +432,12 @@ const Design: React.FC = () => {
 
           {/* History Group */}
           <div className="flex items-center gap-0.5 bg-slate-50 p-0.5 rounded-lg border border-slate-200">
-             <button onClick={handleNew} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all active:scale-95" title="New Layout"><FileUp size={14} className="rotate-180" /></button>
+             <button onClick={() => handleNew()} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all active:scale-95" title="New Layout"><FileUp size={14} className="rotate-180" /></button>
              <div className="w-px h-3 bg-slate-200 mx-0.5" />
              <button onClick={undo} disabled={historyIndex <= 0} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 disabled:opacity-30 transition-all" title="Undo (Ctrl+Z)"><Undo2 size={14} /></button>
              <button onClick={redo} disabled={historyIndex >= history.length - 1} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 disabled:opacity-30 transition-all" title="Redo (Ctrl+Y)"><Redo2 size={14} /></button>
              <button onClick={duplicateSelected} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all" title="Duplicate (Ctrl+D)"><Copy size={14} /></button>
+             <button onClick={centerContent} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all" title="Center All on Card"><AlignCenter size={14} /></button>
           </div>
 
           {/* Element Creation Group */}
@@ -487,13 +477,6 @@ const Design: React.FC = () => {
               className="font-bold text-slate-800 border border-slate-200 focus:ring-2 focus:ring-blue-500 w-24 md:w-32 bg-slate-50 rounded-lg px-2 py-1 h-7 text-[10px] transition-all"
               placeholder="Name..."
             />
-            <button
-              onClick={() => setShowTemplateManager(true)}
-              className="p-1.5 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 bg-white transition-all shadow-sm"
-              title="Templates Library"
-            >
-              <Settings2 size={14} />
-            </button>
           </div>
 
           <button onClick={handleSave} className="bg-blue-600 text-white px-3 md:px-4 py-1.5 rounded-lg flex items-center gap-2 font-black uppercase tracking-wider text-[9px] hover:bg-blue-700 transition shadow-lg shadow-blue-200 active:scale-95">
@@ -561,16 +544,27 @@ const Design: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.15em]">Typography</label>
-                      <select
-                        value={FONTS.includes(selectedObject.fontFamily) ? selectedObject.fontFamily : 'Custom'}
-                        onChange={(e) => {
-                          if (e.target.value !== 'Custom') updateSelected('fontFamily', e.target.value)
-                        }}
-                        className="w-full border border-slate-200 rounded-xl p-2 text-sm bg-white shadow-sm font-medium"
-                      >
-                        {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
-                        <option value="Custom">Custom / System Font...</option>
-                      </select>
+                      <div className="flex gap-2">
+                        <select
+                            value={FONTS.includes(selectedObject.fontFamily) ? selectedObject.fontFamily : 'Custom'}
+                            onChange={(e) => {
+                            if (e.target.value !== 'Custom') updateSelected('fontFamily', e.target.value)
+                            }}
+                            className="flex-1 border border-slate-200 rounded-xl p-2 text-sm bg-white shadow-sm font-medium"
+                        >
+                            {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                            <option value="Custom">Custom / System...</option>
+                        </select>
+                        {(!FONTS.includes(selectedObject.fontFamily) || selectedObject.fontFamily === 'Custom') && (
+                            <input
+                                type="text"
+                                placeholder="Font Name..."
+                                className="w-24 border border-slate-200 rounded-xl px-2 text-xs"
+                                onBlur={(e) => updateSelected('fontFamily', e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && updateSelected('fontFamily', (e.target as HTMLInputElement).value)}
+                            />
+                        )}
+                      </div>
                     </div>
                   </>
                 )}
@@ -716,67 +710,24 @@ const Design: React.FC = () => {
         </div>
       </div>
 
-      {/* Template Manager Modal */}
-      {showTemplateManager && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-50 flex items-center justify-center p-8 animate-in fade-in duration-300">
-           <div className="bg-white rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] w-full max-w-4xl flex flex-col overflow-hidden border border-white/20">
-              <div className="px-12 py-10 border-b flex justify-between items-center bg-slate-50/50">
-                 <div>
-                    <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">Template Library</h2>
-                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Manage your production assets</p>
-                 </div>
-                 <button onClick={() => setShowTemplateManager(false)} className="p-4 hover:bg-slate-200 rounded-full transition-all text-slate-400 hover:text-slate-800 hover:rotate-90">
-                    <X size={32} />
-                 </button>
-              </div>
 
-              <div className="flex-1 overflow-auto p-4 md:p-8 bg-white">
-                 {savedLayouts.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                       {savedLayouts.map(l => (
-                          <div key={l.id} className="group border-2 border-slate-100 hover:border-blue-600 rounded-[1.5rem] md:rounded-[2rem] p-4 md:p-6 transition-all hover:shadow-xl hover:shadow-blue-100 flex flex-col justify-between bg-slate-50/30 hover:bg-white relative overflow-hidden">
-                             <div className="absolute top-0 right-0 p-4 md:p-8 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1.5 md:gap-2">
-                                <button onClick={() => handleDownloadLayout(l)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Export JSON"><Download size={18} /></button>
-                                <button onClick={() => handleRenameLayout(l)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-slate-600 hover:text-blue-600 transition-all" title="Rename"><Pencil size={18} /></button>
-                                <button onClick={() => handleDeleteLayout(l.id)} className="p-2 md:p-2.5 bg-white shadow-md border rounded-lg md:rounded-xl text-red-400 hover:text-red-600 transition-all" title="Delete"><Trash size={18} /></button>
-                             </div>
-
-                             <div>
-                                <div className="p-3 md:p-4 bg-white rounded-xl md:rounded-2xl shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all w-fit mb-4 md:mb-6 border border-slate-100 group-hover:border-blue-500">
-                                   <LayoutTemplate size={24} />
-                                </div>
-                                <h3 className="font-black text-slate-800 text-lg md:text-xl uppercase group-hover:text-blue-600 transition-colors truncate pr-20">{l.name}</h3>
-                                <p className="text-[10px] md:text-[11px] text-slate-400 font-black uppercase tracking-[0.15em] md:tracking-[0.2em] mt-1 md:mt-2">Standard PVC • CR80</p>
-                             </div>
-                             <button
-                                onClick={() => handleLoad(l)}
-                                className="mt-6 md:mt-10 w-full py-3 md:py-4 bg-white border-2 border-slate-200 rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-[0.15em] md:tracking-[0.2em] text-slate-500 group-hover:bg-blue-600 group-hover:border-blue-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-xl group-hover:shadow-blue-200"
-                             >
-                                Load Project
-                             </button>
-                          </div>
-                       ))}
-                    </div>
-                 ) : (
-                    <div className="text-center py-32 bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-200">
-                       <LayoutTemplate size={64} className="mx-auto text-slate-200 mb-6" />
-                       <h3 className="font-black text-slate-400 uppercase tracking-[0.2em]">No templates available</h3>
-                       <p className="text-sm text-slate-400 mt-4 max-w-xs mx-auto font-medium">Create and save your first professional ID layout to see it here.</p>
-                    </div>
-                 )}
-              </div>
-
-              <div className="px-12 py-10 border-t bg-slate-50/50 flex justify-end gap-4">
-                 <button
-                    onClick={() => setShowTemplateManager(false)}
-                    className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-black transition shadow-2xl shadow-slate-300"
-                 >
-                    Return to Designer
-                 </button>
-              </div>
-           </div>
-        </div>
-      )}
+      {/* Global Modals */}
+      <ConfirmModal
+        isOpen={modal.type === 'confirm'}
+        onClose={() => setModal({ ...modal, type: null })}
+        onConfirm={modal.onConfirm || (() => {})}
+        title={modal.title}
+        message={modal.message}
+        isDestructive={modal.isDestructive}
+      />
+      <PromptModal
+        isOpen={modal.type === 'prompt'}
+        onClose={() => setModal({ ...modal, type: null })}
+        onConfirm={modal.onConfirm || (() => {})}
+        title={modal.title}
+        message={modal.message}
+        initialValue={modal.initialValue}
+      />
     </div>
   )
 }

@@ -149,6 +149,43 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     canvas.requestRenderAll()
   }, [canvas])
 
+  const centerContent = useCallback(() => {
+    if (!canvas) return
+    const objects = canvas.getObjects().filter((obj: any) => !obj.isGuide)
+    if (objects.length === 0) return
+
+    // Find bounding box of all objects
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    objects.forEach(obj => {
+      const bound = obj.getBoundingRect()
+      minX = Math.min(minX, bound.left)
+      minY = Math.min(minY, bound.top)
+      maxX = Math.max(maxX, bound.left + bound.width)
+      maxY = Math.max(maxY, bound.top + bound.height)
+    })
+
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+
+    // Target center of CR80 card (at 0,0)
+    import('../utils/units').then(({ CR80_WIDTH_PX, CR80_HEIGHT_PX }) => {
+        const targetX = CR80_WIDTH_PX / 2
+        const targetY = CR80_HEIGHT_PX / 2
+
+        const dx = targetX - centerX
+        const dy = targetY - centerY
+
+        objects.forEach(obj => {
+          obj.set({
+            left: obj.left + dx,
+            top: obj.top + dy
+          })
+          obj.setCoords()
+        })
+        canvas.requestRenderAll()
+    })
+  }, [canvas])
+
   return {
     addText,
     addPlaceholder,
@@ -158,5 +195,6 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     addImage,
     deleteSelected,
     duplicateSelected,
+    centerContent
   }
 }
