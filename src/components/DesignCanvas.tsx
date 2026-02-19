@@ -43,11 +43,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         const offsetY = (clientHeight - CR80_HEIGHT_PX * zoom) / 2
 
         const c = fabricCanvasRef.current
-        c.setZoom(zoom)
-        if (c.viewportTransform) {
-            c.viewportTransform[4] = offsetX
-            c.viewportTransform[5] = offsetY
-        }
+        c.setViewportTransform([zoom, 0, 0, zoom, offsetX, offsetY])
         c.requestRenderAll()
       }
 
