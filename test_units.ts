@@ -1,4 +1,4 @@
-import { mmToPx, pxToMm, CR80_WIDTH_MM, CR80_WIDTH_PX } from './src/utils/units'
+import { mmToPx, pxToMm, CR80_WIDTH_MM, CR80_WIDTH_PX } from './src/utils/units.ts'
 
 function test() {
   console.log('Testing Units Utility...')
