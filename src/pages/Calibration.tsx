@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM, SLOT1_X_MM, SLOT1_Y_MM, SLOT2_Y_MM } from '../utils/units'
 import { printTestSheet } from '../utils/printService'
 
@@ -35,7 +36,7 @@ const Calibration: React.FC = () => {
       }
     } catch (e) {
       console.error('Failed to load profiles:', e)
-      alert('Error connecting to background process')
+      toast.error('Error connecting to background process')
     }
   }
 
@@ -43,7 +44,7 @@ const Calibration: React.FC = () => {
     if (selectedProfile) {
       await window.ipcRenderer.invoke('save-profile', selectedProfile)
       loadProfiles()
-      alert('Profile saved')
+      toast.success('Profile saved')
     }
   }
 

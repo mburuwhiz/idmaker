@@ -98,6 +98,80 @@ export function setupIpc() {
     return db.prepare('DELETE FROM layouts WHERE id = ?').run(id)
   })
 
+  ipcMain.handle('export-layout-wid', async (_event, layoutId) => {
+    const layout = db.prepare('SELECT * FROM layouts WHERE id = ?').get(layoutId) as any
+    if (!layout) return null
+
+    const bundle = {
+      version: '2.0.0',
+      type: 'layout',
+      layout: {
+        name: layout.name,
+        content: layout.content
+      }
+    }
+
+    const savePath = dialog.showSaveDialogSync({
+      title: 'Export WhizPoint Design Package',
+      defaultPath: `${layout.name.replace(/\s+/g, '_')}.wid`,
+      filters: [{ name: 'WhizPoint ID Files', extensions: ['wid'] }]
+    })
+
+    if (savePath) {
+      const MAGIC = Buffer.from('WID2')
+      const jsonContent = JSON.stringify(bundle)
+      const compressed = zlib.gzipSync(jsonContent)
+      const finalBuffer = Buffer.concat([MAGIC, compressed])
+      fs.writeFileSync(savePath, finalBuffer)
+      return savePath
+    }
+    return null
+  })
+
+  ipcMain.handle('import-layout-wid', async () => {
+    const result = await dialog.showOpenDialog({
+      filters: [{ name: 'WhizPoint ID Files', extensions: ['wid'] }]
+    })
+
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const buffer = fs.readFileSync(result.filePaths[0])
+    let bundle: any
+
+    try {
+      const magic = buffer.slice(0, 4).toString()
+      if (magic === 'WID2') {
+        const decompressed = zlib.gunzipSync(buffer.slice(4)).toString('utf-8')
+        bundle = JSON.parse(decompressed)
+      } else {
+        // Legacy fallback
+        const decompressed = zlib.gunzipSync(buffer).toString('utf-8')
+        bundle = JSON.parse(decompressed)
+      }
+    } catch (e) {
+      console.error('[IPC] Failed to parse .wid file:', e)
+      throw new Error('Invalid or corrupted .wid file')
+    }
+
+    // Support both batch WIDs (extract layout) and layout WIDs
+    let layoutData = null
+    if (bundle.type === 'layout' && bundle.layout) {
+      layoutData = bundle.layout
+    } else if (bundle.batch && bundle.batch.layout) {
+      layoutData = bundle.batch.layout
+    }
+
+    if (layoutData) {
+      const { name, content } = layoutData
+      // Append (Imported) to avoid name collision if desired, or let user rename
+      const importName = `${name} (Imported ${new Date().toLocaleTimeString()})`
+      const res = db.prepare('INSERT INTO layouts (name, content) VALUES (?, ?)').run(importName, content)
+      return { id: res.lastInsertRowid, name: importName }
+    }
+
+    throw new Error('No valid layout found in this package')
+  })
+
   // Specialized Import
   ipcMain.handle('import-excel', async (_event, batchNameArg) => {
     try {

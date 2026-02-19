@@ -13,7 +13,7 @@ import {
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM, CR80_WIDTH_PX, CR80_HEIGHT_PX } from '../utils/units'
 
 const DEFAULT_FONTS = [
-  'Clarendon BT', 'Clarendon Lt BT',
+  'Clarendon BT', 'Clarendon Lt BT', 'Clarendon',
   'Arial', 'Arial Black', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact',
   'Times New Roman', 'Didot', 'Georgia', 'American Typewriter',
   'Courier', 'Courier New', 'Monaco', 'Comic Sans MS',
@@ -52,15 +52,22 @@ const Design: React.FC = () => {
   useEffect(() => {
     loadLayouts()
 
-    // Load system fonts
-    window.ipcRenderer.invoke('get-system-fonts').then((fonts: any) => {
-        if (Array.isArray(fonts)) {
-            // Clean font names (remove quotes if present)
-            const cleanFonts = fonts.map(f => f.replace(/['"]+/g, ''))
-            const merged = Array.from(new Set([...DEFAULT_FONTS, ...cleanFonts])).sort()
-            setAvailableFonts(merged)
-        }
-    }).catch(console.error)
+    // Load system fonts safely
+    if (window.ipcRenderer) {
+        window.ipcRenderer.invoke('get-system-fonts').then((fonts: any) => {
+            if (Array.isArray(fonts)) {
+                // Clean font names (remove quotes if present)
+                const cleanFonts = fonts.map(f => f.replace(/['"]+/g, ''))
+                // Ensure priority fonts are at the top
+                const priorityFonts = ['Clarendon BT', 'Clarendon Lt BT', 'Clarendon']
+                const otherFonts = Array.from(new Set([...DEFAULT_FONTS, ...cleanFonts]))
+                    .filter(f => !priorityFonts.includes(f))
+                    .sort()
+
+                setAvailableFonts([...priorityFonts, ...otherFonts])
+            }
+        }).catch(console.error)
+    }
   }, [])
 
   const saveToHistory = (c: any) => {
@@ -389,7 +396,8 @@ const Design: React.FC = () => {
   }
 
   const handleZoomFit = () => {
-    if (canvas && canvas.requestRenderAll) {
+    if (canvas) {
+        restoreWorkspace(canvas)
         canvas.requestRenderAll()
     }
   }
@@ -415,15 +423,25 @@ const Design: React.FC = () => {
     })
   }
 
-  const handleDownloadLayout = (layout: any) => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(layout.content);
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", layout.name + ".json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    toast.success('Layout exported as JSON');
+  const handleExportWid = async (layout: any) => {
+    try {
+      const result = await window.ipcRenderer.invoke('export-layout-wid', layout.id)
+      if (result) toast.success('Design package exported!')
+    } catch (e) {
+      toast.error('Failed to export package')
+    }
+  }
+
+  const handleImportWid = async () => {
+    try {
+      const result = await window.ipcRenderer.invoke('import-layout-wid')
+      if (result) {
+        toast.success(`Imported: ${result.name}`)
+        loadLayouts()
+      }
+    } catch (e) {
+      toast.error('Failed to import package: ' + (e as Error).message)
+    }
   }
 
   const performRenameLayout = async (layout: any, newName: string) => {
@@ -799,19 +817,27 @@ const Design: React.FC = () => {
                         className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                       />
                   </div>
-                  <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
+                  <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setViewMode('list')}
-                        className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-slate-100 text-blue-600 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
+                        onClick={handleImportWid}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors border border-slate-200"
                       >
-                          <Table size={16} />
+                          <FileUp size={14} /> Import Package
                       </button>
-                      <button
-                        onClick={() => setViewMode('grid')}
-                        className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-slate-100 text-blue-600 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
-                      >
-                          <Grid size={16} />
-                      </button>
+                      <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1">
+                          <button
+                            onClick={() => setViewMode('list')}
+                            className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-slate-100 text-blue-600 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
+                          >
+                              <Table size={16} />
+                          </button>
+                          <button
+                            onClick={() => setViewMode('grid')}
+                            className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-slate-100 text-blue-600 shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
+                          >
+                              <Grid size={16} />
+                          </button>
+                      </div>
                   </div>
               </div>
 
@@ -849,7 +875,7 @@ const Design: React.FC = () => {
                                             <button onClick={() => handleLoad(l)} className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-md transition-colors" title="Open">
                                                 <LayoutTemplate size={16} />
                                             </button>
-                                            <button onClick={() => handleDownloadLayout(l)} className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-md transition-colors" title="Export JSON">
+                                            <button onClick={() => handleExportWid(l)} className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-md transition-colors" title="Export Design Package (.wid)">
                                                 <Download size={16} />
                                             </button>
                                             <button onClick={() => handleRenameLayout(l)} className="p-1.5 hover:bg-blue-50 text-slate-500 hover:text-blue-600 rounded-md transition-colors" title="Rename">

@@ -28,7 +28,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "assets/icons/icon.ico"
+      "icon": "assets/icons/logo.ico"
     },
     "nsis": {
       "oneClick": false,
