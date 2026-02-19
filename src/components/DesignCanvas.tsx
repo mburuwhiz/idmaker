@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef } from 'react'
 import * as fabric from 'fabric'
 import { CR80_WIDTH_PX, CR80_HEIGHT_PX, SAFE_MARGIN_PX } from '../utils/units'
 
@@ -8,30 +8,51 @@ interface DesignCanvasProps {
   snapToGrid?: boolean
 }
 
-const WORKSPACE_SIZE = 3000 // Large enough to see anything far off-canvas
-
 const DesignCanvas: React.FC<DesignCanvasProps> = ({
   onCanvasReady
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
-  const [scale, setScale] = useState(1)
 
   useEffect(() => {
     if (canvasRef.current && containerRef.current && !fabricCanvasRef.current) {
       const canvas = new fabric.Canvas(canvasRef.current, {
-        width: WORKSPACE_SIZE,
-        height: WORKSPACE_SIZE,
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
         backgroundColor: '#0f172a', // Dark workspace background
         preserveObjectStacking: true,
         selection: true,
       })
 
-      // Center the CR80 card area in the large workspace
-      const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2
-      const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2
-      canvas.setViewportTransform([1, 0, 0, 1, offsetX, offsetY])
+      const zoomToCenter = () => {
+        if (!containerRef.current || !fabricCanvasRef.current) return
+        const padding = 60
+        const clientWidth = containerRef.current.clientWidth
+        const clientHeight = containerRef.current.clientHeight
+
+        if (clientWidth === 0 || clientHeight === 0) return
+
+        // Calculate required zoom to fit card + padding
+        const scaleX = clientWidth / (CR80_WIDTH_PX + padding * 2)
+        const scaleY = clientHeight / (CR80_HEIGHT_PX + padding * 2)
+        const zoom = Math.min(scaleX, scaleY, 2.0)
+
+        // Calculate translation to center logical (0,0) to (1016, 638)
+        const offsetX = (clientWidth - CR80_WIDTH_PX * zoom) / 2
+        const offsetY = (clientHeight - CR80_HEIGHT_PX * zoom) / 2
+
+        const c = fabricCanvasRef.current
+        c.setZoom(zoom)
+        if (c.viewportTransform) {
+            c.viewportTransform[4] = offsetX
+            c.viewportTransform[5] = offsetY
+        }
+        c.requestRenderAll()
+      }
+
+      // @ts-ignore
+      canvas.zoomToCenter = zoomToCenter
 
       // Zooming with Alt + Wheel
       canvas.on('mouse:wheel', function(this: fabric.Canvas, opt) {
@@ -40,7 +61,7 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
         let zoom = this.getZoom();
         zoom *= 0.999 ** delta;
         if (zoom > 10) zoom = 10;
-        if (zoom < 0.1) zoom = 0.1;
+        if (zoom < 0.01) zoom = 0.01;
         this.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom);
         opt.e.preventDefault();
         opt.e.stopPropagation();
@@ -52,7 +73,6 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
       canvas.on('mouse:down', function(this: fabric.Canvas, opt) {
         const evt = opt.e as MouseEvent;
-        // Alt key or Middle mouse button
         if (evt.altKey === true || (evt as any).button === 1) {
           isDragging = true;
           this.selection = false;
@@ -140,60 +160,36 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
 
       fabricCanvasRef.current = canvas
       ensureGuides()
+      requestAnimationFrame(zoomToCenter)
 
       if (onCanvasReady) {
         onCanvasReady(canvas)
       }
-    }
 
-    // Auto-scaling logic - optimized to fit the CARD in view, but allowing space around it
-    const updateScale = () => {
-      if (!containerRef.current) return
-      const padding = 120 // Space around the card to see off-canvas objects
-      const { clientWidth, clientHeight } = containerRef.current
+      const resizeObserver = new ResizeObserver(() => {
+        if (containerRef.current) {
+          const { clientWidth, clientHeight } = containerRef.current
+          canvas.setDimensions({
+            width: clientWidth,
+            height: clientHeight
+          })
+          // Use requestAnimationFrame to ensure dimensions are applied before zooming
+          requestAnimationFrame(zoomToCenter)
+        }
+      })
+      resizeObserver.observe(containerRef.current)
 
-      // We want the card + padding to fit
-      const targetWidth = CR80_WIDTH_PX + padding * 2
-      const targetHeight = CR80_HEIGHT_PX + padding * 2
-
-      // Prevent division by zero or negative scales
-      const scaleX = clientWidth ? clientWidth / targetWidth : 0.1
-      const scaleY = clientHeight ? clientHeight / targetHeight : 0.1
-
-      // Ensure a minimum visibility scale
-      const newScale = Math.max(0.05, Math.min(scaleX, scaleY, 2.0))
-      setScale(newScale)
-    }
-
-    const resizeObserver = new ResizeObserver(updateScale)
-    if (containerRef.current) resizeObserver.observe(containerRef.current)
-    updateScale()
-
-    return () => {
-      resizeObserver.disconnect()
-      if (fabricCanvasRef.current) {
-        fabricCanvasRef.current.dispose()
+      return () => {
+        resizeObserver.disconnect()
+        canvas.dispose()
         fabricCanvasRef.current = null
       }
     }
   }, [onCanvasReady])
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-slate-950 overflow-hidden relative flex items-center justify-center">
-      {/* Centered Workspace Container */}
-      <div
-        className="transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1)"
-        style={{
-            width: WORKSPACE_SIZE,
-            height: WORKSPACE_SIZE,
-            transform: `scale(${scale})`,
-            transformOrigin: 'center center',
-            flexShrink: 0,
-            margin: 'auto'
-        }}
-      >
-        <canvas ref={canvasRef} />
-      </div>
+    <div ref={containerRef} className="w-full h-full bg-slate-950 overflow-hidden relative">
+      <canvas ref={canvasRef} />
 
       {/* Info Overlay */}
       <div className="absolute bottom-10 left-10 flex flex-col gap-3 pointer-events-none z-20">

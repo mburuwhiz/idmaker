@@ -74,7 +74,8 @@ const Design: React.FC = () => {
     if (!c || isRedoing.current) return
     const json = JSON.stringify(c.toJSON([
       'isPlaceholder', 'isPhotoPlaceholder', 'isPhotoFrame', 'isPhotoText',
-      'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'selectable', 'underline'
+      'fontWeight', 'fontStyle', 'fontFamily', 'rx', 'ry', 'selectable', 'underline',
+      'stroke', 'fill', 'strokeWidth'
     ]))
 
     setHistory(prev => {
@@ -89,11 +90,7 @@ const Design: React.FC = () => {
 
   const restoreWorkspace = (c: any) => {
     if (!c) return;
-    const WORKSPACE_SIZE = 3000;
-    c.setDimensions({ width: WORKSPACE_SIZE, height: WORKSPACE_SIZE });
-    const offsetX = (WORKSPACE_SIZE - CR80_WIDTH_PX) / 2;
-    const offsetY = (WORKSPACE_SIZE - CR80_HEIGHT_PX) / 2;
-    c.setViewportTransform([1, 0, 0, 1, offsetX, offsetY]);
+    if (c.zoomToCenter) c.zoomToCenter();
     if (c.ensureGuides) c.ensureGuides();
     c.renderAll();
   }
@@ -131,7 +128,8 @@ const Design: React.FC = () => {
       'fontWeight',
       'fontStyle',
       'fontFamily',
-      'rx', 'ry', 'selectable', 'underline'
+      'rx', 'ry', 'selectable', 'underline',
+      'stroke', 'fill', 'strokeWidth'
     ]));
     localStorage.setItem('whizpoint_design_draft', content)
     localStorage.setItem('whizpoint_design_name', layoutName)
@@ -359,7 +357,8 @@ const Design: React.FC = () => {
         'fontWeight',
         'fontStyle',
         'fontFamily',
-        'rx', 'ry', 'selectable', 'underline'
+        'rx', 'ry', 'selectable', 'underline',
+        'stroke', 'fill', 'strokeWidth'
       ]));
       await window.ipcRenderer.invoke('save-layout', layoutName, content);
       loadLayouts();
