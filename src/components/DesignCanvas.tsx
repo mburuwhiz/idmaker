@@ -169,7 +169,13 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
     if (containerRef.current) resizeObserver.observe(containerRef.current)
     updateScale()
 
-    return () => resizeObserver.disconnect()
+    return () => {
+      resizeObserver.disconnect()
+      if (fabricCanvasRef.current) {
+        fabricCanvasRef.current.dispose()
+        fabricCanvasRef.current = null
+      }
+    }
   }, [onCanvasReady])
 
   return (

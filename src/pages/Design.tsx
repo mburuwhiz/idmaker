@@ -181,6 +181,9 @@ const Design: React.FC = () => {
           if (savedName) setLayoutName(savedName)
           setTimeout(handleZoomFit, 100)
       })
+    } else {
+      // Even if no draft, ensure workspace is centered
+      restoreWorkspace(canvas)
     }
   }, [canvas])
 
