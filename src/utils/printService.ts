@@ -226,8 +226,9 @@ export async function exportToPdf(sheets: HTMLCanvasElement[], title: string = '
 
   for (let i = 0; i < sheets.length; i++) {
     if (i > 0) pdf.addPage()
-    const imgData = sheets[i].toDataURL('image/jpeg', 1.0)
-    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST')
+    // Use PNG for lossless quality
+    const imgData = sheets[i].toDataURL('image/png')
+    pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, undefined, 'SLOW')
   }
 
   pdf.save(`${title.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`)

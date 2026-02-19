@@ -156,10 +156,12 @@ const DesignCanvas: React.FC<DesignCanvasProps> = ({
       const targetWidth = CR80_WIDTH_PX + padding * 2
       const targetHeight = CR80_HEIGHT_PX + padding * 2
 
-      const scaleX = clientWidth / targetWidth
-      const scaleY = clientHeight / targetHeight
+      // Prevent division by zero or negative scales
+      const scaleX = clientWidth ? clientWidth / targetWidth : 0.1
+      const scaleY = clientHeight ? clientHeight / targetHeight : 0.1
 
-      const newScale = Math.min(scaleX, scaleY, 2.0)
+      // Ensure a minimum visibility scale
+      const newScale = Math.max(0.05, Math.min(scaleX, scaleY, 2.0))
       setScale(newScale)
     }
 
