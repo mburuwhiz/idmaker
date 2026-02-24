@@ -22,6 +22,7 @@ export async function renderCard(
   const canvas = new fabric.StaticCanvas(canvasElement, {
     width: CR80_WIDTH_PX,
     height: CR80_HEIGHT_PX,
+    enableRetinaScaling: false // Ensure 1:1 pixel mapping to avoid scaling artifacts
   })
 
   // @ts-ignore
@@ -33,6 +34,9 @@ export async function renderCard(
   // Ensure viewport is reset to standard 1:1 scale (fixes imported layouts with saved zoom/pan)
   canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
   canvas.setZoom(1)
+
+  // Remove any clip paths that might have been saved with the viewport
+  canvas.clipPath = undefined
 
   // Ensure print background is white, ignoring designer workspace color
   canvas.backgroundColor = '#ffffff'
