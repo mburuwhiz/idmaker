@@ -51,13 +51,12 @@ export async function renderCard(
     if (width > 10 && height > 10) { // Avoid scaling tiny artifacts
       const scaleX = CR80_WIDTH_PX / width
       const scaleY = CR80_HEIGHT_PX / height
-      const scale = Math.min(scaleX, scaleY)
 
-      // If content is significantly larger or smaller, scale it to fit
-      // We accept a small tolerance (e.g. 1%) to avoid unnecessary resampling
-      // Also, we always center to fix offsets
-      if (scale < 0.99 || scale > 1.01) {
-        selection.scale(scale)
+      // Scale independent axes to ensure the content fills the card exactly
+      // This handles aspect ratio mismatches and DPI scaling issues
+      if (Math.abs(scaleX - 1) > 0.001 || Math.abs(scaleY - 1) > 0.001) {
+        selection.set('scaleX', scaleX)
+        selection.set('scaleY', scaleY)
       }
 
       canvas.centerObject(selection)
