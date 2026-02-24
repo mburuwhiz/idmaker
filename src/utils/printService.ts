@@ -30,6 +30,10 @@ export async function renderCard(
   // Force standard dimensions after loading JSON as it might contain different sizes
   canvas.setDimensions({ width: CR80_WIDTH_PX, height: CR80_HEIGHT_PX })
 
+  // Ensure viewport is reset to standard 1:1 scale (fixes imported layouts with saved zoom/pan)
+  canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
+  canvas.setZoom(1)
+
   // Ensure print background is white, ignoring designer workspace color
   canvas.backgroundColor = '#ffffff'
 

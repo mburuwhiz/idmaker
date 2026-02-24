@@ -8,7 +8,7 @@ import {
   MoveUp, MoveDown, UserSquare, Bold, Italic, FileUp,
   Maximize, Settings2, Download, Trash, X, MousePointer2, Grid3X3,
   Underline as UnderlineIcon, Pencil, Magnet, LayoutTemplate, Undo2, Redo2, Copy,
-  Search, Calendar, FileJson, Table, Grid
+  Search, Calendar, FileJson, Table, Grid, Group, Ungroup
 } from 'lucide-react'
 import { CR80_WIDTH_MM, CR80_HEIGHT_MM, CR80_WIDTH_PX, CR80_HEIGHT_PX } from '../utils/units'
 
@@ -22,7 +22,7 @@ const DEFAULT_FONTS = [
 
 const Design: React.FC = () => {
   const [canvas, setCanvas] = useState<any>(null)
-  const { addText, addPlaceholder, addPhotoFrame, addRect, addLine, addImage, deleteSelected, duplicateSelected } = useCanvasActions(canvas)
+  const { addText, addPlaceholder, addPhotoFrame, addRect, addLine, addImage, deleteSelected, duplicateSelected, groupSelected, ungroupSelected } = useCanvasActions(canvas)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // History for Undo/Redo
@@ -521,6 +521,10 @@ const Design: React.FC = () => {
              <div className="w-px h-3 bg-slate-200 mx-0.5" />
              <button onClick={undo} disabled={historyIndex <= 0} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 disabled:opacity-30 transition-all" title="Undo (Ctrl+Z)"><Undo2 size={14} /></button>
              <button onClick={redo} disabled={historyIndex >= history.length - 1} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 disabled:opacity-30 transition-all" title="Redo (Ctrl+Y)"><Redo2 size={14} /></button>
+             <div className="w-px h-3 bg-slate-200 mx-0.5" />
+             <button onClick={groupSelected} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all" title="Group Selected"><Group size={14} /></button>
+             <button onClick={ungroupSelected} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all" title="Ungroup"><Ungroup size={14} /></button>
+             <div className="w-px h-3 bg-slate-200 mx-0.5" />
              <button onClick={duplicateSelected} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-600 transition-all" title="Duplicate (Ctrl+D)"><Copy size={14} /></button>
           </div>
 

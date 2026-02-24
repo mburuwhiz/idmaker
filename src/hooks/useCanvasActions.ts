@@ -149,6 +149,69 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     canvas.requestRenderAll()
   }, [canvas])
 
+  const groupSelected = useCallback(() => {
+    if (!canvas) return
+    const activeObject = canvas.getActiveObject()
+    if (!activeObject || activeObject.type !== 'activeSelection') return
+
+    // Attempt standard method first, fallback to manual
+    try {
+      if (typeof (activeObject as any).toGroup === 'function') {
+        (activeObject as any).toGroup()
+        canvas.requestRenderAll()
+        return
+      }
+    } catch (e) {
+      console.warn('toGroup failed, trying manual approach', e)
+    }
+
+    const objects = (activeObject as fabric.ActiveSelection).getObjects()
+    canvas.discardActiveObject()
+
+    const group = new fabric.Group(objects)
+    objects.forEach(obj => canvas.remove(obj))
+    canvas.add(group)
+    canvas.setActiveObject(group)
+    canvas.requestRenderAll()
+  }, [canvas])
+
+  const ungroupSelected = useCallback(() => {
+    if (!canvas) return
+    const activeObject = canvas.getActiveObject()
+    if (!activeObject || activeObject.type !== 'group') return
+
+    // Attempt standard method first
+    try {
+      if (typeof (activeObject as any).toActiveSelection === 'function') {
+        (activeObject as any).toActiveSelection()
+        canvas.requestRenderAll()
+        return
+      }
+    } catch (e) {
+      console.warn('toActiveSelection failed, trying manual approach', e)
+    }
+
+    // Manual fallback (simplified, might lose transforms if API changed significantly)
+    const group = activeObject as fabric.Group
+    const objects = group.getObjects()
+
+    // Naive restoration of objects to canvas
+    // NOTE: This assumes objects retain or can easily restore canvas-relative coords.
+    // In Fabric v6, strict transform restoration might require more complex logic.
+    group.removeAll()
+    canvas.remove(group)
+
+    objects.forEach(obj => {
+        // @ts-ignore
+        if (obj.group === group) obj.group = undefined
+        canvas.add(obj)
+    })
+
+    const selection = new fabric.ActiveSelection(objects, { canvas: canvas })
+    canvas.setActiveObject(selection)
+    canvas.requestRenderAll()
+  }, [canvas])
+
   return {
     addText,
     addPlaceholder,
@@ -158,5 +221,7 @@ export const useCanvasActions = (canvas: fabric.Canvas | null) => {
     addImage,
     deleteSelected,
     duplicateSelected,
+    groupSelected,
+    ungroupSelected,
   }
 }
