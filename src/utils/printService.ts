@@ -19,7 +19,7 @@ export async function renderCard(
   adjustments: { zoom: number, x: number, y: number } = { zoom: 1, x: 0, y: 0 }
 ): Promise<HTMLCanvasElement> {
   const canvasElement = document.createElement('canvas')
-  const canvas = new fabric.StaticCanvas(canvasElement, {
+  const canvas = new fabric.Canvas(canvasElement, {
     width: CR80_WIDTH_PX,
     height: CR80_HEIGHT_PX,
     enableRetinaScaling: false // Ensure 1:1 pixel mapping to avoid scaling artifacts
@@ -40,6 +40,33 @@ export async function renderCard(
 
   // Ensure print background is white, ignoring designer workspace color
   canvas.backgroundColor = '#ffffff'
+
+  // AUTO-FIT: Scale content to fit the card dimensions
+  const initialObjects = canvas.getObjects()
+  if (initialObjects.length > 0) {
+    const selection = new fabric.ActiveSelection(initialObjects, { canvas: canvas })
+    const width = selection.width || 0
+    const height = selection.height || 0
+
+    if (width > 10 && height > 10) { // Avoid scaling tiny artifacts
+      const scaleX = CR80_WIDTH_PX / width
+      const scaleY = CR80_HEIGHT_PX / height
+      const scale = Math.min(scaleX, scaleY)
+
+      // If content is significantly larger or smaller, scale it to fit
+      // We accept a small tolerance (e.g. 1%) to avoid unnecessary resampling
+      // Also, we always center to fix offsets
+      if (scale < 0.99 || scale > 1.01) {
+        selection.scale(scale)
+      }
+
+      canvas.centerObject(selection)
+      selection.setCoords()
+    }
+
+    // Ungroup to apply transforms to individual objects
+    canvas.discardActiveObject()
+  }
 
   const objects = [...canvas.getObjects()]
 
