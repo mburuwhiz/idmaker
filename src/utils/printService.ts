@@ -41,10 +41,26 @@ export async function renderCard(
   // Ensure print background is white, ignoring designer workspace color
   canvas.backgroundColor = '#ffffff'
 
+  // Pre-process objects to hide guides and irrelevant items before calculating bounds
+  const objects = [...canvas.getObjects()]
+  for (const obj of objects as any[]) {
+    // Aggressive hiding of photo guides and placeholder text
+    if (
+      obj.isPhotoText ||
+      obj.get?.('isPhotoText') ||
+      (obj.text && obj.text.trim().toUpperCase() === 'PHOTO')
+    ) {
+      obj.set('visible', false)
+      obj.set('opacity', 0)
+    }
+  }
+
   // AUTO-FIT: Scale content to fit the card dimensions
-  const initialObjects = canvas.getObjects()
-  if (initialObjects.length > 0) {
-    const selection = new fabric.ActiveSelection(initialObjects, { canvas: canvas })
+  // Filter only visible objects to determine the true bounding box
+  const visibleObjects = canvas.getObjects().filter((obj: any) => obj.visible && obj.opacity !== 0)
+
+  if (visibleObjects.length > 0) {
+    const selection = new fabric.ActiveSelection(visibleObjects, { canvas: canvas })
     const width = selection.width || 0
     const height = selection.height || 0
 
@@ -67,18 +83,11 @@ export async function renderCard(
     canvas.discardActiveObject()
   }
 
-  const objects = [...canvas.getObjects()]
+  // Re-fetch objects for placeholder replacement logic
+  const finalObjects = [...canvas.getObjects()]
 
-  for (const obj of objects as any[]) {
-    // Aggressive hiding of photo guides and placeholder text
-    if (
-      obj.isPhotoText ||
-      obj.get?.('isPhotoText') ||
-      (obj.text && obj.text.trim().toUpperCase() === 'PHOTO')
-    ) {
-      obj.set('visible', false)
-      obj.set('opacity', 0)
-    }
+  for (const obj of finalObjects as any[]) {
+    // Note: We already hid photo text above, but kept this loop structure for placeholders
 
     // Replace text placeholders (support multiple placeholders and handle spaces/casing)
     if (obj.text) {
